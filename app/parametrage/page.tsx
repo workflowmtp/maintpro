@@ -7,17 +7,18 @@ import { StatusBadge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import Store from '@/lib/store';
 import { COMPANY_DEFAULT, SAGE_X3_CONFIG } from '@/lib/config';
-import { ROLES, getRoleName } from '@/lib/roles';
+import { ROLES, getRoleName, ALL_PERMISSIONS, PERMISSION_CATEGORIES, getEffectivePermissions, getCustomRolePermissions, setCustomRolePermissions } from '@/lib/roles';
 import { getPoleName, getAtelierName } from '@/lib/utils';
 import { getConnectionStatus } from '@/lib/sage-x3';
 import { useData } from '@/contexts/DataContext';
 import type { User, Pole, Atelier, Cause, CompanyInfo, RoleId } from '@/lib/types';
 
-type Tab = 'entreprise' | 'users' | 'poles' | 'ateliers' | 'causes' | 'sage' | 'systeme';
+type Tab = 'entreprise' | 'users' | 'roles' | 'poles' | 'ateliers' | 'causes' | 'sage' | 'systeme';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'entreprise', label: 'Entreprise' },
   { id: 'users', label: 'Utilisateurs' },
+  { id: 'roles', label: 'Roles & Permissions' },
   { id: 'poles', label: 'Poles' },
   { id: 'ateliers', label: 'Ateliers' },
   { id: 'causes', label: 'Causes' },
@@ -35,8 +36,22 @@ export default function ParametragePage() {
   const [, setTick] = useState(0);
   const [company, setCompany] = useState<CompanyInfo>(Store.get<CompanyInfo>('company_info') || COMPANY_DEFAULT);
   const [exportJson, setExportJson] = useState('');
+  const [selectedRole, setSelectedRole] = useState<RoleId | null>(null);
+  const [rolePerms, setRolePerms] = useState<Record<string, string[]>>({});
+  const [dirtyPerms, setDirtyPerms] = useState(false);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
+
+  // Load role permissions on mount
+  const editableRoles = Object.values(ROLES).filter(r => r.id !== 'admin');
+  useEffect(() => {
+    const overrides = getCustomRolePermissions();
+    const perms: Record<string, string[]> = {};
+    editableRoles.forEach(r => {
+      perms[r.id] = overrides[r.id] ? [...overrides[r.id]] : [...r.permissions];
+    });
+    setRolePerms(perms);
+  }, []);
 
   // --- ENTREPRISE ---
   if (tab === 'entreprise') {
@@ -93,6 +108,143 @@ export default function ParametragePage() {
           <div className="form-row"><div className="form-group"><label className="form-label">Role *</label><select className="form-select" id="uf_role" defaultValue={u?.role || ''}><option value="">--</option>{roles.map((r) => <option key={r.id} value={r.id}>{r.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Pole</label><select className="form-select" id="uf_pole" defaultValue={u?.pole_id || ''}><option value="">Tous</option>{poles.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}</select></div></div>
         </Modal>;
       })()}
+    </>);
+  }
+
+  // --- ROLES & PERMISSIONS ---
+  if (tab === 'roles') {
+    const togglePerm = (roleId: string, permId: string) => {
+      setRolePerms(prev => {
+        const current = prev[roleId] || [];
+        const has = current.includes(permId);
+        return { ...prev, [roleId]: has ? current.filter(p => p !== permId) : [...current, permId] };
+      });
+      setDirtyPerms(true);
+    };
+
+    const toggleAllCategory = (roleId: string, catId: string) => {
+      const catPerms = ALL_PERMISSIONS.filter(p => p.category === catId).map(p => p.id);
+      setRolePerms(prev => {
+        const current = prev[roleId] || [];
+        const allChecked = catPerms.every(p => current.includes(p));
+        const updated = allChecked
+          ? current.filter(p => !catPerms.includes(p))
+          : [...new Set([...current, ...catPerms])];
+        return { ...prev, [roleId]: updated };
+      });
+      setDirtyPerms(true);
+    };
+
+    const savePerms = () => {
+      setCustomRolePermissions(rolePerms);
+      toast('Permissions sauvegardees avec succes', 'success');
+      setDirtyPerms(false);
+    };
+
+    const resetToDefaults = (roleId: string) => {
+      const defaults = ROLES[roleId as RoleId]?.permissions || [];
+      setRolePerms(prev => ({ ...prev, [roleId]: [...defaults] }));
+      setDirtyPerms(true);
+      toast('Permissions par defaut restaurees pour ' + getRoleName(roleId as RoleId), 'info');
+    };
+
+    const resetAllDefaults = () => {
+      const perms: Record<string, string[]> = {};
+      editableRoles.forEach(r => { perms[r.id] = [...r.permissions]; });
+      setRolePerms(perms);
+      setCustomRolePermissions({});
+      setDirtyPerms(false);
+      toast('Toutes les permissions restaurees par defaut', 'success');
+    };
+
+    const activeRole = selectedRole || editableRoles[0]?.id || null;
+    const activePerms = activeRole ? (rolePerms[activeRole] || []) : [];
+
+    return (<>
+      <TabBar tab={tab} setTab={setTab} />
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>🔐 Gestion des Permissions par Role</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {dirtyPerms && <button className="btn btn-primary btn-sm" onClick={savePerms}>💾 Sauvegarder</button>}
+          <button className="btn btn-outline btn-sm" onClick={resetAllDefaults}>🔄 Restaurer defauts</button>
+        </div>
+      </div>
+
+      {/* Role selector */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {editableRoles.map(r => {
+          const isActive = activeRole === r.id;
+          const permCount = (rolePerms[r.id] || []).length;
+          return (
+            <div key={r.id} onClick={() => setSelectedRole(r.id)}
+              style={{ padding: '10px 16px', borderRadius: 'var(--radius)', cursor: 'pointer', border: '2px solid ' + (isActive ? 'var(--accent-blue)' : 'var(--border)'), background: isActive ? 'var(--accent-blue-dim)' : 'var(--bg-card)', transition: 'all 0.2s', minWidth: 120, textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.nom}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{permCount} permissions</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {activeRole && <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <span style={{ fontWeight: 700, fontSize: '1rem' }}>{getRoleName(activeRole as RoleId)}</span>
+          <span className="badge badge-blue">{activePerms.length} / {ALL_PERMISSIONS.length}</span>
+          <button className="btn btn-outline btn-sm" style={{ marginLeft: 'auto', fontSize: '0.8rem' }} onClick={() => resetToDefaults(activeRole)}>Restaurer defauts</button>
+        </div>
+
+        {PERMISSION_CATEGORIES.map(cat => {
+          const catPerms = ALL_PERMISSIONS.filter(p => p.category === cat.id);
+          if (catPerms.length === 0) return null;
+          const allChecked = catPerms.every(p => activePerms.includes(p.id));
+          const someChecked = catPerms.some(p => activePerms.includes(p.id));
+          return (
+            <div key={cat.id} className="int-detail-card" style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '1.1rem' }}>{cat.icon}</span>
+                <span style={{ fontWeight: 700 }}>{cat.label}</span>
+                <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  <input type="checkbox" checked={allChecked} ref={el => { if (el) el.indeterminate = !allChecked && someChecked; }}
+                    onChange={() => toggleAllCategory(activeRole, cat.id)} style={{ width: 16, height: 16, accentColor: 'var(--accent-blue)' }} />
+                  Tout
+                </label>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 6 }}>
+                {catPerms.map(perm => {
+                  const checked = activePerms.includes(perm.id);
+                  return (
+                    <label key={perm.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 'var(--radius)', cursor: 'pointer', background: checked ? 'var(--accent-green-dim)' : 'var(--bg-input)', border: '1px solid ' + (checked ? 'var(--accent-green)' : 'transparent'), transition: 'all 0.15s' }}>
+                      <input type="checkbox" checked={checked} onChange={() => togglePerm(activeRole, perm.id)}
+                        style={{ width: 16, height: 16, marginTop: 2, accentColor: 'var(--accent-green)', flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{perm.label}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{perm.description}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Summary matrix */}
+        <div className="int-detail-card" style={{ marginTop: 16 }}>
+          <div className="int-detail-card-title">📋 Matrice des Permissions</div>
+          <div className="data-table-wrap"><table className="data-table" style={{ fontSize: '0.75rem' }}><thead><tr><th style={{ minWidth: 180 }}>Permission</th>
+            {editableRoles.map(r => <th key={r.id} style={{ textAlign: 'center', minWidth: 70 }}>{r.nom.split(' ')[0]}</th>)}
+          </tr></thead><tbody>
+            {ALL_PERMISSIONS.map(perm => (
+              <tr key={perm.id}>
+                <td title={perm.description}>{perm.label}</td>
+                {editableRoles.map(r => {
+                  const has = (rolePerms[r.id] || []).includes(perm.id);
+                  return <td key={r.id} style={{ textAlign: 'center' }}>{has ? <span style={{ color: 'var(--accent-green)', fontWeight: 700 }}>✓</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody></table></div>
+        </div>
+      </>}
     </>);
   }
 
