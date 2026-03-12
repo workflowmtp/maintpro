@@ -11,7 +11,7 @@ function buildDatabaseUrl(): string {
   const password = process.env.DB_PASSWORD || '';
   const ssl = process.env.DB_SSL === 'true' ? '?sslmode=require' : '';
 
-  return `postgresql://${user}:${password}@${host}:${port}/${name}${ssl}`;
+  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${name}${ssl}`;
 }
 
 const url = buildDatabaseUrl();

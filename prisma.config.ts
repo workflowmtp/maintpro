@@ -11,7 +11,7 @@ function buildDatabaseUrl(): string {
   const password = process.env.DB_PASSWORD || "";
   const ssl = process.env.DB_SSL === "true" ? "?sslmode=require" : "";
 
-  const url = `postgresql://${user}:${password}@${host}:${port}/${name}${ssl}`;
+  const url = `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${name}${ssl}`;
   // Set DATABASE_URL so Prisma schema can resolve env("DATABASE_URL")
   process.env.DATABASE_URL = url;
   return url;
