@@ -129,7 +129,7 @@ export default function ParametragePage() {
         const allChecked = catPerms.every(p => current.includes(p));
         const updated = allChecked
           ? current.filter(p => !catPerms.includes(p))
-          : [...new Set([...current, ...catPerms])];
+          : Array.from(new Set([...current, ...catPerms]));
         return { ...prev, [roleId]: updated };
       });
       setDirtyPerms(true);
