@@ -27,7 +27,7 @@ export default function PreventifPage() {
   // Compute scheduled tasks
   const getInterval = (freq: string): number => ({ 'Quotidien': 1, 'Hebdomadaire': 7, 'Bi-mensuel': 15, 'Mensuel': 30, 'Trimestriel': 90, 'Semestriel': 180, 'Annuel': 365 }[freq] || 30);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const todayStr = new Date().toFullYear + '-' + ('0' + (new Date().getMonth() + 1)).slice(-2) + '-' + ('0' + new Date().getDate()).slice(-2);
+  const todayStr = new Date().getFullYear() + '-' + ('0' + (new Date().getMonth() + 1)).slice(-2) + '-' + ('0' + new Date().getDate()).slice(-2);
   const pad = (n: number) => n < 10 ? '0' + n : '' + n;
   const todayS = year + '-' + pad(new Date().getMonth() + 1) + '-' + pad(new Date().getDate());
   const completions = Store.get<Record<string, boolean>>('prev_completions') || {};
