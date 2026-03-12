@@ -33,14 +33,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  const publicPages = ['/login', '/register'];
+
   useEffect(() => {
-    if (!isAuthenticated && pathname !== '/login') {
+    if (!isAuthenticated && !publicPages.includes(pathname)) {
       router.replace('/login');
     }
   }, [isAuthenticated, pathname, router]);
 
-  // Login page - no layout
-  if (pathname === '/login') {
+  // Public pages - no layout
+  if (publicPages.includes(pathname)) {
     return (
       <>
         <ToastContainer />

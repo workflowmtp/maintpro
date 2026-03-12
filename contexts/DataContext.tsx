@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { _setCache, _setSingle } from '@/lib/store';
 
 const COLLECTIONS = [
@@ -24,8 +25,12 @@ const DataContext = createContext<DataContextType>({
   refreshAll: async () => {},
 });
 
+const PUBLIC_PAGES = ['/login', '/register'];
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
+  const isPublicPage = PUBLIC_PAGES.includes(pathname);
+  const [loading, setLoading] = useState(!isPublicPage);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,8 +72,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshAll();
-  }, [refreshAll]);
+    if (!isPublicPage) {
+      refreshAll();
+    } else {
+      setLoading(false);
+    }
+  }, [refreshAll, isPublicPage]);
 
   if (loading) {
     return (
