@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { POLES, COMPANY_DEFAULT } from '@/lib/config';
 
@@ -411,7 +412,7 @@ export async function POST() {
         dysfonctionnement: 'Vibration anormale sur le groupe imprimant 1',
         symptome: 'Bruit metallique en rotation, traces sur impression',
         machine_arretee: 'non', urgence_percue: 'Moyenne',
-        statut: 'Qualifie', intervention_id: null,
+        statut: 'Qualifie',
         qualification: { chef_id: 'chef_01', date: d(8, 8), impact_production: 'Modere', constat_terrain: 'Vibration confirmee, possible roulement use', priorite_production: 'Haute', commentaire: 'A traiter rapidement avant aggravation', completed: true },
       },
       {
@@ -420,8 +421,8 @@ export async function POST() {
         dysfonctionnement: 'Bourrage papier frequent au niveau du margeur',
         symptome: 'Feuilles arrivent de travers, arret toutes les 10 minutes',
         machine_arretee: 'non', urgence_percue: 'Haute',
-        statut: 'Nouveau', intervention_id: null,
-        qualification: null,
+        statut: 'Nouveau',
+        qualification: Prisma.JsonNull,
       },
     ];
     for (const s of signalements) {
