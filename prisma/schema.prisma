@@ -1,0 +1,278 @@
+// ============================================================
+// MaintPro v3+ — Prisma Schema
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- UTILISATEURS ---
+model User {
+  id       String  @id @default(cuid())
+  nom      String
+  email    String  @unique
+  password String
+  login    String  @unique
+  role     String
+  pole_id  String?
+  actif    Boolean @default(true)
+
+  @@map("users")
+}
+
+// --- POLES ---
+model Pole {
+  id   String @id
+  nom  String
+  code String @unique
+
+  @@map("poles")
+}
+
+// --- ATELIERS ---
+model Atelier {
+  id      String @id
+  nom     String
+  pole_id String
+
+  @@map("ateliers")
+}
+
+// --- TECHNICIENS ---
+model Technicien {
+  id         String @id
+  nom        String
+  specialite String
+  pole_id    String
+  tel        String
+
+  @@map("techniciens")
+}
+
+// --- OPERATEURS ---
+model Operateur {
+  id         String @id
+  nom        String
+  pole_id    String
+  atelier_id String
+
+  @@map("operateurs")
+}
+
+// --- CHEFS D'ATELIER ---
+model ChefAtelier {
+  id         String @id
+  nom        String
+  pole_id    String
+  atelier_id String
+
+  @@map("chefs_atelier")
+}
+
+// --- MACHINES ---
+model Machine {
+  id                  String @id
+  nom                 String
+  code                String @unique
+  pole_id             String
+  atelier_id          String
+  criticite           String
+  chef_atelier_id     String
+  etat                String
+  disponibilite       Float
+  heures_prevues_mois Float
+  heures_courantes    Float
+  tours_courants      Float
+  techniciens_affectes Json   @default("[]")
+
+  @@map("machines")
+}
+
+// --- ORGANES ---
+model Organe {
+  id         String @id
+  nom        String
+  machine_id String
+  type       String
+
+  @@map("organes")
+}
+
+// --- CAUSES ---
+model Cause {
+  id        String @id
+  nom       String
+  categorie String
+
+  @@map("causes")
+}
+
+// --- PIECES DE RECHANGE ---
+model Piece {
+  id              String  @id
+  ref             String  @unique
+  designation     String
+  prix_unitaire   Float
+  emplacement     String
+  machine_id      String?
+  organe_id       String?
+  stock_actuel    Int
+  seuil_reappro   Int
+  fournisseur     String
+  delai_livraison Int
+
+  @@map("pieces")
+}
+
+// --- INTERVENTIONS ---
+model Intervention {
+  id                       String @id
+  ref                      String @unique
+  date                     String
+  machine_id               String
+  pole_id                  String
+  atelier_id               String
+  technicien_principal_id  String
+  techniciens_participants Json   @default("[]")
+  type                     String
+  statut                   String
+  description              String
+  cause_id                 String?
+  pieces_utilisees         Json   @default("[]")
+  duree_minutes            Float
+  duree_diagnostic_min     Float
+  duree_intervention_min   Float
+  panne_repetitive         Boolean @default(false)
+  operateur_id             String?
+  chef_validation_id       String?
+  workflow                 Json    @default("{}")
+  signalement_id           String?
+
+  @@map("interventions")
+}
+
+// --- ACTIONS ---
+model Action {
+  id              String @id
+  intervention_id String?
+  description     String
+  responsable     String
+  echeance        String
+  statut          String
+  priorite        String
+  date_creation   String
+
+  @@map("actions")
+}
+
+// --- MOUVEMENTS STOCK ---
+model StockMovement {
+  id              String  @id
+  piece_id        String
+  type            String
+  quantite        Int
+  date            String
+  intervention_id String?
+  commentaire     String
+  operateur       String
+
+  @@map("stock_movements")
+}
+
+// --- DEMANDES D'ACHAT ---
+model DemandeAchat {
+  id                  String @id
+  ref                 String @unique
+  date                String
+  pole_id             String
+  type_achat          String
+  urgence             String
+  designation         String
+  quantite            Int
+  montant_estime      Float
+  fournisseur_propose String
+  date_souhaitee      String
+  machine_id          String
+  intervention_id     String
+  piece_id            String
+  st_id               String
+  demandeur           String
+  justification       String
+  statut              String
+
+  @@map("demandes_achat")
+}
+
+// --- SOUS-TRAITANCE ---
+model SousTraitance {
+  id               String @id
+  ref              String @unique
+  date             String
+  pole_id          String
+  prestataire      String
+  contact          String
+  objet            String
+  machine_id       String
+  intervention_id  String
+  montant          Float
+  date_debut_prevue String
+  date_fin_prevue  String
+  bon_commande     String
+  statut           String
+  observations     String
+
+  @@map("sous_traitances")
+}
+
+// --- TACHES PREVENTIVES ---
+model TachePreventive {
+  id                String  @id
+  machine_id        String
+  organe_id         String?
+  piece_id          String?
+  tache             String
+  frequence         String
+  duree_std_min     Float
+  type_seuil        String
+  seuil_valeur      Float
+  alerte_avant_jours Int
+
+  @@map("taches_preventives")
+}
+
+// --- SIGNALEMENTS ---
+model Signalement {
+  id                 String  @id
+  ref                String  @unique
+  date_signalement   String
+  operateur_id       String
+  pole_id            String
+  atelier_id         String
+  machine_id         String
+  dysfonctionnement  String
+  symptome           String
+  machine_arretee    String
+  urgence_percue     String
+  statut             String
+  intervention_id    String?
+  qualification      Json?
+
+  @@map("signalements")
+}
+
+// --- COMPANY INFO ---
+model CompanyInfo {
+  id        String @id @default("default")
+  nom       String
+  adresse   String
+  tel       String
+  email     String
+  logo_text String
+
+  @@map("company_info")
+}
