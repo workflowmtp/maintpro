@@ -66,7 +66,12 @@ export default function LoginPage() {
         <button className="login-btn" onClick={handleLogin} disabled={loading}>
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
-        <div className="login-error">{error}</div>
+        {error && <div className="login-error">{error}</div>}
+
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: '0.85rem' }}>
+          <span style={{ color: 'var(--text-secondary)' }}>Pas encore de compte ? </span>
+          <a href="/register" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>S&apos;inscrire</a>
+        </div>
       </div>
     </div>
   );
