@@ -31,16 +31,18 @@ const TABS: { id: Tab; label: string }[] = [
 export default function ParametragePage() {
   const { hasPermission } = useAuth();
   const { toast } = useApp();
+  const { refreshAll } = useData();
   const [tab, setTab] = useState<Tab>('entreprise');
   const [editId, setEditId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [, setTick] = useState(0);
+  const [company, setCompany] = useState<CompanyInfo>(Store.get<CompanyInfo>('company_info') || COMPANY_DEFAULT);
+  const [exportJson, setExportJson] = useState('');
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
 
   // --- ENTREPRISE ---
   if (tab === 'entreprise') {
-    const [company, setCompany] = useState<CompanyInfo>(Store.get<CompanyInfo>('company_info') || COMPANY_DEFAULT);
     const save = () => {
       const c: CompanyInfo = { nom: gv('ce_nom') || company.nom, adresse: gv('ce_adr') || company.adresse, tel: gv('ce_tel') || company.tel, email: gv('ce_email') || company.email, logo_text: gv('ce_logo') || company.logo_text };
       Store.set('company_info', c); setCompany(c); toast('Informations entreprise sauvegardees', 'success');
@@ -177,9 +179,6 @@ export default function ParametragePage() {
 
   // --- SYSTEME ---
   if (tab === 'systeme') {
-    const { refreshAll } = useData();
-    const [exportJson, setExportJson] = useState('');
-
     const exportData = () => {
       const data: Record<string, any> = {};
       ['users','poles','ateliers','techniciens','operateurs','chefs_atelier','machines','organes','causes','pieces','interventions','actions','stock_movements','demandes_achat','sous_traitances','taches_preventives','signalements','company_info'].forEach((k) => { data[k] = Store.get(k); });
