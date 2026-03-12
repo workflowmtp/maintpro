@@ -63,6 +63,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           if (ci) _setSingle('company_info', ci);
         }
       } catch {}
+      // Fetch role_permissions
+      try {
+        const rpRes = await fetch('/api/data/role_permissions');
+        if (rpRes.ok) {
+          const rpData = await rpRes.json();
+          const permsMap: Record<string, string[]> = {};
+          (Array.isArray(rpData) ? rpData : []).forEach((rp: any) => {
+            permsMap[rp.id] = Array.isArray(rp.permissions) ? rp.permissions : [];
+          });
+          _setSingle('role_permissions', permsMap);
+        }
+      } catch {}
       setLoaded(true);
     } catch (err: any) {
       setError(err.message || 'Erreur de chargement des donnees');

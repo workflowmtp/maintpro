@@ -276,3 +276,11 @@ model CompanyInfo {
 
   @@map("company_info")
 }
+
+// --- ROLE PERMISSIONS ---
+model RolePermission {
+  id          String @id
+  permissions Json   @default("[]")
+
+  @@map("role_permissions")
+}

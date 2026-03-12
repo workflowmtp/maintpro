@@ -3,6 +3,7 @@
 // ============================================================
 
 import { RoleId, RoleDefinition } from './types';
+import Store from './store';
 
 // --- PERMISSION REGISTRY ---
 // Each permission has a label, category, and description of what it unlocks
@@ -142,22 +143,23 @@ export const ROLES: Record<RoleId, RoleDefinition> = {
   },
 };
 
-// --- DYNAMIC OVERRIDES ---
-const OVERRIDES_KEY = 'mp3_role_permissions';
+// --- DYNAMIC OVERRIDES (DB-backed via Store) ---
 
 export function getCustomRolePermissions(): Record<string, string[]> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(OVERRIDES_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return Store.get<Record<string, string[]>>('role_permissions') || {};
 }
 
 export function setCustomRolePermissions(overrides: Record<string, string[]>): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
+  // Update local cache immediately
+  Store.set('role_permissions', overrides);
+  // Persist each role to the DB via API
+  Object.entries(overrides).forEach(([roleId, permissions]) => {
+    fetch('/api/data/role_permissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: roleId, permissions }),
+    }).catch(err => console.error('Save role_permissions error:', err));
+  });
 }
 
 export function getEffectivePermissions(roleId: RoleId): string[] {

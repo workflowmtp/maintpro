@@ -21,6 +21,7 @@ const MODEL_MAP: Record<string, string> = {
   taches_preventives: 'tachePreventive',
   signalements: 'signalement',
   company_info: 'companyInfo',
+  role_permissions: 'rolePermission',
 };
 
 function getModel(collection: string): any {

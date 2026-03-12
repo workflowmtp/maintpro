@@ -17,7 +17,7 @@ const _cache: Record<string, any[]> = {};
 // Single-object cache for non-array DB data (company_info, etc.)
 const _singleCache: Record<string, any> = {};
 
-const SINGLE_KEYS = new Set(['company_info']);
+const SINGLE_KEYS = new Set(['company_info', 'role_permissions']);
 
 // Called by DataProvider to sync cache
 export function _setCache(collection: string, items: any[]): void {
