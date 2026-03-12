@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import Store from '@/lib/store';
-import { formatDate, formatMoney, getPoleName, getMachineName, getTechName, filterByPole } from '@/lib/utils';
-import type { Intervention, Machine, Technicien, Piece, Action, DemandeAchat, SousTraitance, Signalement } from '@/lib/types';
+import { formatDate, formatMoney, getPoleName, getMachineName, getTechName, filterByPole, getUsersByRole } from '@/lib/utils';
+import type { Intervention, Machine, Piece, Action, DemandeAchat, SousTraitance, Signalement } from '@/lib/types';
 
 type RapportId = 'synthese' | 'machines' | 'techniciens' | 'stock' | 'cout' | 'actions';
 
@@ -23,7 +23,7 @@ export default function RapportsPage() {
 
   const interventions = filterByPole(Store.getAll<Intervention>('interventions'), activePole);
   const machines = filterByPole(Store.getAll<Machine>('machines'), activePole);
-  const techs = Store.getAll<Technicien>('techniciens');
+  const techs = getUsersByRole('technicien');
   const pieces = Store.getAll<Piece>('pieces');
   const actions = Store.getAll<Action>('actions');
   const das = Store.getAll<DemandeAchat>('demandes_achat');
@@ -74,8 +74,8 @@ export default function RapportsPage() {
       </tbody></table></div>);
     }
     if (selectedReport === 'techniciens') {
-      return (<div className="rapport-content"><table><thead><tr><th>Technicien</th><th>Specialite</th><th>Pole</th><th>Interventions</th><th>Duree (min)</th><th>Terminees</th></tr></thead><tbody>
-        {techs.map((t) => { const tInts = interventions.filter((i) => i.technicien_principal_id === t.id); return <tr key={t.id}><td>{t.nom}</td><td>{t.specialite}</td><td>{getPoleName(t.pole_id)}</td><td>{tInts.length}</td><td>{tInts.reduce((s, i) => s + (i.duree_minutes || 0), 0)}</td><td>{tInts.filter((i) => i.statut === 'Termine' || i.statut === 'Valide production').length}</td></tr>; })}
+      return (<div className="rapport-content"><table><thead><tr><th>Technicien</th><th>Pole</th><th>Interventions</th><th>Duree (min)</th><th>Terminees</th></tr></thead><tbody>
+        {techs.map((t) => { const tInts = interventions.filter((i) => i.technicien_principal_id === t.id); return <tr key={t.id}><td>{t.nom}</td><td>{getPoleName(t.pole_id)}</td><td>{tInts.length}</td><td>{tInts.reduce((s, i) => s + (i.duree_minutes || 0), 0)}</td><td>{tInts.filter((i) => i.statut === 'Termine' || i.statut === 'Valide production').length}</td></tr>; })}
       </tbody></table></div>);
     }
     if (selectedReport === 'stock') {

@@ -51,8 +51,24 @@ export function getMachineName(machineId: string | null | undefined): string {
 
 export function getTechName(techId: string | null | undefined): string {
   if (!techId) return '-';
-  const t = Store.findById<{ id: string; nom: string }>('techniciens', techId);
+  const t = Store.findById<{ id: string; nom: string }>('users', techId);
   return t ? t.nom : '-';
+}
+
+export function getOperateurName(opId: string | null | undefined): string {
+  if (!opId) return '-';
+  const o = Store.findById<{ id: string; nom: string }>('users', opId);
+  return o ? o.nom : '-';
+}
+
+export function getChefName(chefId: string | null | undefined): string {
+  if (!chefId) return '-';
+  const c = Store.findById<{ id: string; nom: string }>('users', chefId);
+  return c ? c.nom : '-';
+}
+
+export function getUsersByRole(role: string): { id: string; nom: string; role: string; pole_id?: string; email?: string }[] {
+  return Store.getAll<{ id: string; nom: string; role: string; pole_id?: string; email?: string }>('users').filter((u) => u.role === role);
 }
 
 export function getAtelierName(atelId: string | null | undefined): string {

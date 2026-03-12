@@ -7,8 +7,8 @@ import { StatusBadge, CriticiteBadge } from '@/components/ui/Badge';
 import { Pagination, paginate } from '@/components/ui/Pagination';
 import { Modal } from '@/components/ui/Modal';
 import Store from '@/lib/store';
-import { formatDate, formatDateTime, formatMoney, getPoleName, getMachineName, getTechName, getAtelierName, pad2, toLocalDT, filterByPole } from '@/lib/utils';
-import type { Intervention, Machine, Technicien, Operateur, Cause, Piece, Action, Signalement, ChefAtelier } from '@/lib/types';
+import { formatDate, formatDateTime, formatMoney, getPoleName, getMachineName, getTechName, getAtelierName, pad2, toLocalDT, filterByPole, getUsersByRole } from '@/lib/utils';
+import type { Intervention, Machine, Cause, Piece, Action, Signalement, User } from '@/lib/types';
 
 type View = 'list' | 'detail' | 'workflow' | 'form';
 
@@ -88,10 +88,10 @@ export default function InterventionsPage() {
     const it = Store.findById<Intervention>('interventions', currentId);
     if (!it) { setView('list'); return null; }
     const machine = Store.findById<Machine>('machines', it.machine_id);
-    const techP = Store.findById<Technicien>('techniciens', it.technicien_principal_id);
+    const techP = Store.findById<User>('users', it.technicien_principal_id);
     const cause = it.cause_id ? Store.findById<Cause>('causes', it.cause_id) : null;
-    const parts = (it.techniciens_participants || []).map((id) => Store.findById<Technicien>('techniciens', id)?.nom).filter(Boolean);
-    const op = it.operateur_id ? Store.findById<Operateur>('operateurs', it.operateur_id) : null;
+    const parts = (it.techniciens_participants || []).map((id) => Store.findById<User>('users', id)?.nom).filter(Boolean);
+    const op = it.operateur_id ? Store.findById<User>('users', it.operateur_id) : null;
     const actions = Store.getAll<Action>('actions').filter((a) => a.intervention_id === it.id);
     const DR = ({ l, v }: { l: string; v: React.ReactNode }) => <div className="int-detail-row"><span className="int-detail-label">{l}</span><span className="int-detail-value">{v}</span></div>;
 
@@ -109,7 +109,7 @@ export default function InterventionsPage() {
       <div className="int-detail-grid">
         <div className="int-detail-card"><div className="int-detail-card-title">📄 Infos generales</div><DR l="Reference" v={it.ref} /><DR l="Date" v={formatDateTime(it.date)} /><DR l="Type" v={it.type} /><DR l="Statut" v={<StatusBadge statut={it.statut} />} /><DR l="Description" v={it.description} /></div>
         <div className="int-detail-card"><div className="int-detail-card-title">⚙ Machine</div><DR l="Machine" v={machine?.nom || '-'} /><DR l="Code" v={machine?.code || '-'} /><DR l="Pole" v={getPoleName(it.pole_id)} /><DR l="Atelier" v={getAtelierName(it.atelier_id)} /><DR l="Criticite" v={machine ? <CriticiteBadge criticite={machine.criticite} /> : '-'} /></div>
-        <div className="int-detail-card"><div className="int-detail-card-title">👥 Equipe</div><DR l="Tech principal" v={techP ? techP.nom + ' (' + techP.specialite + ')' : '-'} /><DR l="Participants" v={parts.length > 0 ? parts.join(', ') : 'Aucun'} /><DR l="Operateur" v={op?.nom || '-'} /></div>
+        <div className="int-detail-card"><div className="int-detail-card-title">👥 Equipe</div><DR l="Tech principal" v={techP ? techP.nom : '-'} /><DR l="Participants" v={parts.length > 0 ? parts.join(', ') : 'Aucun'} /><DR l="Operateur" v={op?.nom || '-'} /></div>
         <div className="int-detail-card"><div className="int-detail-card-title">⏱ Temps & Diagnostic</div><DR l="Duree totale" v={(it.duree_minutes || 0) + ' min'} /><DR l="Diagnostic" v={(it.duree_diagnostic_min || 0) + ' min'} /><DR l="Intervention" v={(it.duree_intervention_min || 0) + ' min'} /><DR l="Cause" v={cause ? cause.nom + ' (' + cause.categorie + ')' : '-'} /></div>
       </div>
       {it.pieces_utilisees?.length > 0 && <div className="int-detail-card" style={{ marginBottom: 24 }}><div className="int-detail-card-title">📦 Pieces utilisees</div>
@@ -155,9 +155,9 @@ export default function InterventionsPage() {
       Store.upsert('interventions', it); toast('Etape ' + (idx + 1) + ' sauvegardee', 'success'); refresh();
     };
 
-    const techs = Store.getAll<Technicien>('techniciens');
+    const techs = getUsersByRole('technicien');
     const causes = Store.getAll<Cause>('causes');
-    const chefsA = Store.getAll<ChefAtelier>('chefs_atelier');
+    const chefsA = getUsersByRole('chef_atelier');
     const pieces = Store.getAll<Piece>('pieces');
 
     return (<>
@@ -230,8 +230,8 @@ export default function InterventionsPage() {
   const it = currentId ? Store.findById<Intervention>('interventions', currentId) : null;
   const isNew = !it;
   const machines = Store.getAll<Machine>('machines');
-  const techs = Store.getAll<Technicien>('techniciens');
-  const ops = Store.getAll<Operateur>('operateurs');
+  const techs = getUsersByRole('technicien');
+  const ops = getUsersByRole('operateur');
   const causes = Store.getAll<Cause>('causes');
 
   const save = () => {
@@ -261,7 +261,7 @@ export default function InterventionsPage() {
         <div className="form-group"><label className="form-label">Machine *</label><select className="form-select" id="frm_machine" defaultValue={it?.machine_id || ''}><option value="">--</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}</select></div>
       </div>
       <div className="form-row">
-        <div className="form-group"><label className="form-label">Technicien principal *</label><select className="form-select" id="frm_tech" defaultValue={it?.technicien_principal_id || ''}><option value="">--</option>{techs.map((t) => <option key={t.id} value={t.id}>{t.nom} ({t.specialite})</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Technicien principal *</label><select className="form-select" id="frm_tech" defaultValue={it?.technicien_principal_id || ''}><option value="">--</option>{techs.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}</select></div>
         <div className="form-group"><label className="form-label">Operateur</label><select className="form-select" id="frm_op" defaultValue={it?.operateur_id || ''}><option value="">--</option>{ops.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}</select></div>
       </div>
       <div className="form-group"><label className="form-label">Description *</label><textarea className="form-textarea" id="frm_desc" defaultValue={it?.description || ''} /></div>

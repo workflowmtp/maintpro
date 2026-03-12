@@ -6,8 +6,8 @@ import { useApp } from '@/contexts/AppContext';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Pagination, paginate } from '@/components/ui/Pagination';
 import Store from '@/lib/store';
-import { formatDateTime, getPoleName, getMachineName, getTechName } from '@/lib/utils';
-import type { Signalement, Machine, Operateur, ChefAtelier, Intervention } from '@/lib/types';
+import { formatDateTime, getPoleName, getMachineName, getTechName, getUsersByRole } from '@/lib/utils';
+import type { Signalement, Machine, Intervention, User } from '@/lib/types';
 
 type View = 'list' | 'detail' | 'form';
 
@@ -52,7 +52,7 @@ export default function SignalementsPage() {
       <div className="sig-card-grid">
         {paged.length === 0 && <div className="alert-empty" style={{ gridColumn: '1/-1' }}>Aucun signalement</div>}
         {paged.map((s) => {
-          const op = s.operateur_id ? Store.findById<Operateur>('operateurs', s.operateur_id) : null;
+          const op = s.operateur_id ? Store.findById<User>('users', s.operateur_id) : null;
           return (<div key={s.id} className={'sig-card urgence-' + s.urgence_percue} onClick={() => { setCurrentId(s.id); setView('detail'); }}>
             <div className="sig-card-header"><span className="sig-card-ref">{s.ref}</span><div style={{ display: 'flex', gap: 4 }}><StatusBadge statut={s.statut} /> <StatusBadge statut={s.urgence_percue} /></div></div>
             <div className="sig-card-machine">{getMachineName(s.machine_id)}</div>
@@ -68,9 +68,9 @@ export default function SignalementsPage() {
   if (view === 'detail' && currentId) {
     const s = Store.findById<Signalement>('signalements', currentId);
     if (!s) { setView('list'); return null; }
-    const op = s.operateur_id ? Store.findById<Operateur>('operateurs', s.operateur_id) : null;
+    const op = s.operateur_id ? Store.findById<User>('users', s.operateur_id) : null;
     const machine = Store.findById<Machine>('machines', s.machine_id);
-    const chefs = Store.getAll<ChefAtelier>('chefs_atelier');
+    const chefs = getUsersByRole('chef_atelier');
     const intv = s.intervention_id ? Store.findById<Intervention>('interventions', s.intervention_id) : null;
     const flowSteps = ['Nouveau', 'Qualifie', 'Intervention creee'];
     const ci = flowSteps.indexOf(s.statut);
@@ -141,7 +141,7 @@ export default function SignalementsPage() {
   // FORM
   const userPole = getUserPoleId();
   let machines = Store.getAll<Machine>('machines');
-  let operateurs = Store.getAll<Operateur>('operateurs');
+  let operateurs = getUsersByRole('operateur');
   if (userPole && !hasPermission('pole_all')) { machines = machines.filter((m) => m.pole_id === userPole); operateurs = operateurs.filter((o) => o.pole_id === userPole); }
 
   const save = () => {

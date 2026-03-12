@@ -5,8 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { StatusBadge, CriticiteBadge } from '@/components/ui/Badge';
 import Store from '@/lib/store';
-import { formatDate, formatMoney, getPoleName, getAtelierName, filterByPole } from '@/lib/utils';
-import type { Machine, Technicien, Intervention, Piece, Organe, TachePreventive, ChefAtelier, Pole, Atelier } from '@/lib/types';
+import { formatDate, formatMoney, getPoleName, getAtelierName, filterByPole, getUsersByRole } from '@/lib/utils';
+import type { Machine, Intervention, Piece, Organe, TachePreventive, Pole, Atelier, User } from '@/lib/types';
 
 type View = 'grid' | 'detail' | 'form';
 
@@ -54,7 +54,7 @@ export default function MachinesPage() {
               <span className="mach-card-stat-label">Heures</span><span className="mach-card-stat-val" style={{ fontFamily: 'var(--font-mono)' }}>{m.heures_courantes.toLocaleString()} h</span>
             </div>
             {m.techniciens_affectes?.length > 0 && <div className="mach-card-team">{m.techniciens_affectes.map((ta, i) => {
-              const tech = Store.findById<Technicien>('techniciens', ta.technicien_id);
+              const tech = Store.findById<User>('users', ta.technicien_id);
               const cls = 'mach-team-tag' + (ta.specialite === 'Mecanique' ? ' mec' : ta.specialite === 'Electricite' ? ' elec' : ' poly');
               return <span key={i} className={cls}>{tech?.nom.split(' ')[0] || '?'} ({ta.role})</span>;
             })}</div>}
@@ -67,7 +67,7 @@ export default function MachinesPage() {
   if (view === 'detail' && currentId) {
     const m = Store.findById<Machine>('machines', currentId);
     if (!m) { setView('grid'); return null; }
-    const chef = m.chef_atelier_id ? Store.findById<ChefAtelier>('chefs_atelier', m.chef_atelier_id) : null;
+    const chef = m.chef_atelier_id ? Store.findById<User>('users', m.chef_atelier_id) : null;
     const ints = Store.getAll<Intervention>('interventions').filter((it) => it.machine_id === m.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const pcs = Store.getAll<Piece>('pieces').filter((p) => p.machine_id === m.id);
     const orgs = Store.getAll<Organe>('organes').filter((o) => o.machine_id === m.id);
@@ -86,7 +86,7 @@ export default function MachinesPage() {
         <div className="int-detail-card"><div className="int-detail-card-title">⚙ Fiche</div><DR l="Pole" v={getPoleName(m.pole_id)} /><DR l="Atelier" v={getAtelierName(m.atelier_id)} /><DR l="Chef" v={chef?.nom || '-'} /><DR l="H prevues/mois" v={m.heures_prevues_mois + ' h'} /><DR l="H courantes" v={m.heures_courantes.toLocaleString() + ' h'} />{m.tours_courants > 0 && <DR l="Tours" v={m.tours_courants.toLocaleString()} />}</div>
         <div className="int-detail-card"><div className="int-detail-card-title">📊 KPI</div><div className="mach-dispo-ring" style={{ border: '4px solid ' + dispoColor, color: dispoColor }}>{m.disponibilite}%</div><div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>Disponibilite</div><DR l="Interventions" v={ints.length} /><DR l="Curatives" v={nbCur} /><DR l="Cout maint." v={formatMoney(cost)} /></div>
       </div>
-      {m.techniciens_affectes?.length > 0 && <div className="mach-detail-section"><div className="mach-detail-section-title">👥 Equipe</div><div className="mach-detail-section-body">{m.techniciens_affectes.map((aff, i) => { const t = Store.findById<Technicien>('techniciens', aff.technicien_id); return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}><span className={'mach-team-tag' + (aff.specialite === 'Mecanique' ? ' mec' : aff.specialite === 'Electricite' ? ' elec' : ' poly')}>{aff.specialite}</span><strong>{t?.nom || '?'}</strong><span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{aff.role}</span>{t?.tel && <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', fontSize: '0.8rem', marginLeft: 'auto' }}>{t.tel}</span>}</div>; })}</div></div>}
+      {m.techniciens_affectes?.length > 0 && <div className="mach-detail-section"><div className="mach-detail-section-title">👥 Equipe</div><div className="mach-detail-section-body">{m.techniciens_affectes.map((aff, i) => { const t = Store.findById<User>('users', aff.technicien_id); return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}><span className={'mach-team-tag' + (aff.specialite === 'Mecanique' ? ' mec' : aff.specialite === 'Electricite' ? ' elec' : ' poly')}>{aff.specialite}</span><strong>{t?.nom || '?'}</strong><span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{aff.role}</span></div>; })}</div></div>}
       {orgs.length > 0 && <div className="mach-detail-section"><div className="mach-detail-section-title">🔧 Organes ({orgs.length})</div><div className="mach-detail-section-body">{orgs.map((o) => <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}><strong>{o.nom}</strong><span className="badge badge-blue">{o.type}</span></div>)}</div></div>}
       {pcs.length > 0 && <div className="mach-detail-section"><div className="mach-detail-section-title">📦 Pieces ({pcs.length})</div><div className="mach-detail-section-body">{pcs.map((p) => <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}><div><strong>{p.ref}</strong> - {p.designation}</div><div style={{ display: 'flex', gap: 8 }}><span style={{ fontFamily: 'var(--font-mono)' }}>Stock: {p.stock_actuel}/{p.seuil_reappro}</span>{p.stock_actuel === 0 ? <span className="badge badge-red">RUPTURE</span> : p.stock_actuel <= p.seuil_reappro ? <span className="badge badge-orange">BAS</span> : <span className="badge badge-green">OK</span>}</div></div>)}</div></div>}
       <div className="mach-detail-section"><div className="mach-detail-section-title">📅 Historique ({Math.min(ints.length, 10)})</div><div className="mach-detail-section-body">{ints.slice(0, 10).map((it) => <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}><strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-blue)' }}>{it.ref}</strong>{it.type === 'Curatif' ? <span className="badge badge-orange">Cur</span> : <span className="badge badge-green">Prev</span>}<StatusBadge statut={it.statut} /><span style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>{formatDate(it.date)}</span></div>)}</div></div>
@@ -96,7 +96,7 @@ export default function MachinesPage() {
   // FORM
   const m = currentId ? Store.findById<Machine>('machines', currentId) : null;
   const isNew = !m;
-  const poles = Store.getAll<Pole>('poles'); const ateliers = Store.getAll<Atelier>('ateliers'); const chefs = Store.getAll<ChefAtelier>('chefs_atelier');
+  const poles = Store.getAll<Pole>('poles'); const ateliers = Store.getAll<Atelier>('ateliers'); const chefs = getUsersByRole('chef_atelier');
   const save = () => {
     const nom = gv('mf_nom'); if (!nom) { toast('Nom requis', 'error'); return; }
     Store.upsert('machines', { id: m?.id || Store.generateId('mach'), nom, code: gv('mf_code'), pole_id: gv('mf_pole'), atelier_id: gv('mf_atelier'), criticite: (gv('mf_crit') || 'Standard') as any, etat: (gv('mf_etat') || 'En service') as any, chef_atelier_id: gv('mf_chef'), disponibilite: parseInt(gv('mf_dispo')) || 100, heures_prevues_mois: parseInt(gv('mf_hpm')) || 0, heures_courantes: parseInt(gv('mf_hc')) || 0, tours_courants: parseInt(gv('mf_tc')) || 0, techniciens_affectes: m?.techniciens_affectes || [] } as Machine);

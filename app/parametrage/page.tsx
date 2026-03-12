@@ -11,18 +11,15 @@ import { ROLES, getRoleName } from '@/lib/roles';
 import { getPoleName, getAtelierName } from '@/lib/utils';
 import { getConnectionStatus } from '@/lib/sage-x3';
 import { useData } from '@/contexts/DataContext';
-import type { User, Pole, Atelier, Technicien, Operateur, ChefAtelier, Cause, CompanyInfo, RoleId } from '@/lib/types';
+import type { User, Pole, Atelier, Cause, CompanyInfo, RoleId } from '@/lib/types';
 
-type Tab = 'entreprise' | 'users' | 'poles' | 'ateliers' | 'techniciens' | 'operateurs' | 'chefs' | 'causes' | 'sage' | 'systeme';
+type Tab = 'entreprise' | 'users' | 'poles' | 'ateliers' | 'causes' | 'sage' | 'systeme';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'entreprise', label: 'Entreprise' },
   { id: 'users', label: 'Utilisateurs' },
   { id: 'poles', label: 'Poles' },
   { id: 'ateliers', label: 'Ateliers' },
-  { id: 'techniciens', label: 'Techniciens' },
-  { id: 'operateurs', label: 'Operateurs' },
-  { id: 'chefs', label: 'Chefs Atelier' },
   { id: 'causes', label: 'Causes' },
   { id: 'sage', label: 'Sage X3' },
   { id: 'systeme', label: 'Systeme' },
@@ -103,13 +100,8 @@ export default function ParametragePage() {
   const genericTabs: Record<string, { collection: string; fields: { key: string; label: string; type?: string; ref?: { collection: string; labelKey: string } }[]; title: string }> = {
     poles: { collection: 'poles', title: 'Poles', fields: [{ key: 'nom', label: 'Nom' }, { key: 'code', label: 'Code' }] },
     ateliers: { collection: 'ateliers', title: 'Ateliers', fields: [{ key: 'nom', label: 'Nom' }, { key: 'pole_id', label: 'Pole', type: 'select', ref: { collection: 'poles', labelKey: 'nom' } }] },
-    techniciens: { collection: 'techniciens', title: 'Techniciens', fields: [{ key: 'nom', label: 'Nom' }, { key: 'specialite', label: 'Specialite', type: 'enum' }, { key: 'pole_id', label: 'Pole', type: 'select', ref: { collection: 'poles', labelKey: 'nom' } }, { key: 'tel', label: 'Telephone' }] },
-    operateurs: { collection: 'operateurs', title: 'Operateurs', fields: [{ key: 'nom', label: 'Nom' }, { key: 'pole_id', label: 'Pole', type: 'select', ref: { collection: 'poles', labelKey: 'nom' } }, { key: 'atelier_id', label: 'Atelier', type: 'select', ref: { collection: 'ateliers', labelKey: 'nom' } }] },
-    chefs: { collection: 'chefs_atelier', title: "Chefs d'Atelier", fields: [{ key: 'nom', label: 'Nom' }, { key: 'pole_id', label: 'Pole', type: 'select', ref: { collection: 'poles', labelKey: 'nom' } }, { key: 'atelier_id', label: 'Atelier', type: 'select', ref: { collection: 'ateliers', labelKey: 'nom' } }] },
     causes: { collection: 'causes', title: 'Causes', fields: [{ key: 'nom', label: 'Nom' }, { key: 'categorie', label: 'Categorie' }] },
   };
-
-  const specs = ['Mecanique', 'Electricite', 'Polyvalent'];
 
   if (genericTabs[tab]) {
     const cfg = genericTabs[tab];
@@ -143,9 +135,7 @@ export default function ParametragePage() {
               const opts = Store.getAll<any>(f.ref.collection);
               return <div key={f.key} className="form-group"><label className="form-label">{f.label}</label><select className="form-select" id={'gf_' + f.key} defaultValue={item?.[f.key] || ''}><option value="">--</option>{opts.map((o: any) => <option key={o.id} value={o.id}>{o[f.ref!.labelKey]}</option>)}</select></div>;
             }
-            if (f.type === 'enum' && f.key === 'specialite') {
-              return <div key={f.key} className="form-group"><label className="form-label">{f.label}</label><select className="form-select" id={'gf_' + f.key} defaultValue={item?.[f.key] || ''}><option value="">--</option>{specs.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>;
-            }
+            
             return <div key={f.key} className="form-group"><label className="form-label">{f.label}</label><input className="form-input" id={'gf_' + f.key} defaultValue={item?.[f.key] || ''} /></div>;
           })}
         </Modal>;

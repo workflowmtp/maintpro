@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import Store from '@/lib/store';
-import { getMachineName, getTechName, getPoleName, filterByPole, formatMoney } from '@/lib/utils';
-import type { Intervention, Machine, Technicien, Piece, Action, TachePreventive } from '@/lib/types';
+import { getMachineName, getTechName, getPoleName, filterByPole, formatMoney, getUsersByRole } from '@/lib/utils';
+import type { Intervention, Machine, Piece, Action, TachePreventive } from '@/lib/types';
 
 export default function KPIPage() {
   const { activePole } = useApp();
@@ -15,7 +15,7 @@ export default function KPIPage() {
 
   const interventions = filterByPole(Store.getAll<Intervention>('interventions'), activePole);
   const machines = filterByPole(Store.getAll<Machine>('machines'), activePole);
-  const techs = Store.getAll<Technicien>('techniciens');
+  const techs = getUsersByRole('technicien');
   const pieces = Store.getAll<Piece>('pieces');
   const actions = Store.getAll<Action>('actions');
   const tprevs = Store.getAll<TachePreventive>('taches_preventives');
@@ -45,9 +45,9 @@ export default function KPIPage() {
     const techInts = interventions.filter((i) => i.technicien_principal_id === t.id);
     const duree = techInts.reduce((s, i) => s + (i.duree_minutes || 0), 0);
     const terminees = techInts.filter((i) => i.statut === 'Termine' || i.statut === 'Valide production').length;
-    return { id: t.id, nom: t.nom, specialite: t.specialite, pole: getPoleName(t.pole_id), nb: techInts.length, duree, terminees, score: terminees > 0 ? Math.min(100, Math.round((terminees / Math.max(techInts.length, 1)) * 100)) : 0 };
+    return { id: t.id, nom: t.nom, pole: getPoleName(t.pole_id), nb: techInts.length, duree, terminees, score: terminees > 0 ? Math.min(100, Math.round((terminees / Math.max(techInts.length, 1)) * 100)) : 0 };
   }).sort((a, b) => b.nb - a.nb);
-  if (searchTech) { const s = searchTech.toLowerCase(); techPerf = techPerf.filter((t) => t.nom.toLowerCase().includes(s) || t.specialite.toLowerCase().includes(s)); }
+  if (searchTech) { const s = searchTech.toLowerCase(); techPerf = techPerf.filter((t) => t.nom.toLowerCase().includes(s) || t.pole.toLowerCase().includes(s)); }
 
   // Machine ranking
   const machRank = machines.map((m) => {
@@ -127,9 +127,9 @@ export default function KPIPage() {
         <input className="int-search" placeholder="Rechercher technicien..." value={searchTech} onChange={(e) => setSearchTech(e.target.value)} style={{ maxWidth: 300 }} />
       </div>
       <div className="data-table-wrap" style={{ marginBottom: 0 }}>
-        <table className="data-table kpi-eval-table"><thead><tr><th>Technicien</th><th>Specialite</th><th>Pole</th><th>Interventions</th><th>Terminees</th><th>Duree (min)</th><th>Score</th></tr></thead><tbody>
+        <table className="data-table kpi-eval-table"><thead><tr><th>Technicien</th><th>Pole</th><th>Interventions</th><th>Terminees</th><th>Duree (min)</th><th>Score</th></tr></thead><tbody>
           {techPerf.map((t) => (
-            <tr key={t.id}><td><strong>{t.nom}</strong></td><td><span className={'mach-team-tag' + (t.specialite === 'Mecanique' ? ' mec' : t.specialite === 'Electricite' ? ' elec' : ' poly')}>{t.specialite}</span></td><td>{t.pole}</td>
+            <tr key={t.id}><td><strong>{t.nom}</strong></td><td>{t.pole}</td>
             <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{t.nb}</td><td>{t.terminees}</td><td>{t.duree}</td>
             <td><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ flex: 1, height: 8, background: 'var(--bg-input)', borderRadius: 4, overflow: 'hidden' }}><div style={{ width: t.score + '%', height: '100%', borderRadius: 4, background: t.score >= 80 ? 'var(--accent-green)' : t.score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)' }} /></div><span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 700 }}>{t.score}%</span></div></td>
             </tr>
