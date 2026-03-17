@@ -29,6 +29,7 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
   { id: 'interventions_create', label: 'Creer interventions / signalements', category: 'menu_maintenance', description: 'Creer des interventions et signalements' },
   { id: 'interventions_edit', label: 'Modifier interventions', category: 'menu_maintenance', description: 'Modifier des interventions existantes' },
   { id: 'interventions_all', label: 'Voir toutes les interventions', category: 'menu_maintenance', description: 'Voir les interventions de tous les poles' },
+  { id: 'interventions_delete', label: 'Supprimer interventions', category: 'menu_maintenance', description: 'Supprimer des interventions' },
   { id: 'planning_view', label: 'Voir preventif / planning', category: 'menu_maintenance', description: 'Acces au menu Preventif' },
   { id: 'actions_view', label: 'Voir actions', category: 'menu_maintenance', description: 'Acces a la liste des actions correctives' },
   { id: 'actions_create', label: 'Creer actions', category: 'menu_maintenance', description: 'Creer des actions correctives' },
@@ -85,7 +86,7 @@ export const ROLES: Record<RoleId, RoleDefinition> = {
     nom: 'Responsable Maintenance',
     niveau: 2,
     permissions: [
-      'interventions_view', 'interventions_create', 'interventions_edit', 'interventions_all',
+      'interventions_view', 'interventions_create', 'interventions_edit', 'interventions_delete', 'interventions_all',
       'actions_view', 'actions_create', 'actions_edit', 'planning_view',
       'kpi_view', 'evaluations_view', 'stock_view', 'stock_edit',
       'da_view', 'da_create', 'da_edit', 'da_workflow',
