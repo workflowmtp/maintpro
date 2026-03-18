@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { POLES, COMPANY_DEFAULT } from '@/lib/config';
 
@@ -209,7 +210,7 @@ export async function POST() {
       { id: 'sig_02', ref: 'SIG-2026-002', date_signalement: d(6, 9), operateur_id: 'op_04', pole_id: 'pole_bc', atelier_id: 'atl_bc1', machine_id: 'mach_07', dysfonctionnement: 'Nouvelle fuite hydraulique meme zone que la derniere fois', symptome: 'Traces d\'huile, pression instable sur le manometre', machine_arretee: 'oui', urgence_percue: 'Haute', statut: 'Intervention creee', intervention_id: 'int_04', qualification: { chef_id: 'chef_04', date: d(6, 10), impact_production: 'Arret total', constat_terrain: 'Meme probleme que SIG-001, suspicion defaut raccord', priorite_production: 'Urgente', commentaire: 'Panne repetitive confirmee', completed: true } },
       { id: 'sig_03', ref: 'SIG-2026-003', date_signalement: d(7, 5), operateur_id: 'op_02', pole_id: 'pole_hf', atelier_id: 'atl_hf2', machine_id: 'mach_04', dysfonctionnement: 'Aspiration faible sur la complexeuse, film mal tendu', symptome: 'Bruit aspiration reduit, defaut de complexage visible sur produit', machine_arretee: 'non', urgence_percue: 'Haute', statut: 'Intervention creee', intervention_id: 'int_05', qualification: { chef_id: 'chef_02', date: d(7, 6), impact_production: 'Fort', constat_terrain: 'Filtre aspiration probablement colmate', priorite_production: 'Haute', commentaire: 'Production degradee, changement filtre necessaire', completed: true } },
       { id: 'sig_04', ref: 'SIG-2026-004', date_signalement: d(8, 7), operateur_id: 'op_01', pole_id: 'pole_oe', atelier_id: 'atl_oe1', machine_id: 'mach_01', dysfonctionnement: 'Vibration anormale sur le groupe imprimant 1', symptome: 'Bruit metallique en rotation, traces sur impression', machine_arretee: 'non', urgence_percue: 'Moyenne', statut: 'Qualifie', intervention_id: null, qualification: { chef_id: 'chef_01', date: d(8, 8), impact_production: 'Modere', constat_terrain: 'Vibration confirmee, possible roulement use', priorite_production: 'Haute', commentaire: 'A traiter rapidement avant aggravation', completed: true } },
-      { id: 'sig_05', ref: 'SIG-2026-005', date_signalement: d(9, 6), operateur_id: 'op_03', pole_id: 'pole_oc', atelier_id: 'atl_oc1', machine_id: 'mach_05', dysfonctionnement: 'Bourrage papier frequent au niveau du margeur', symptome: 'Feuilles arrivent de travers, arret toutes les 10 minutes', machine_arretee: 'non', urgence_percue: 'Haute', statut: 'Nouveau', intervention_id: null, qualification: null },
+      { id: 'sig_05', ref: 'SIG-2026-005', date_signalement: d(9, 6), operateur_id: 'op_03', pole_id: 'pole_oc', atelier_id: 'atl_oc1', machine_id: 'mach_05', dysfonctionnement: 'Bourrage papier frequent au niveau du margeur', symptome: 'Feuilles arrivent de travers, arret toutes les 10 minutes', machine_arretee: 'non', urgence_percue: 'Haute', statut: 'Nouveau', intervention_id: null, qualification: Prisma.JsonNull },
     ];
     for (const s of signalements) await prisma.signalement.create({ data: s });
 
