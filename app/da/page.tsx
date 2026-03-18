@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { StatusBadge } from '@/components/ui/Badge';
 import Store from '@/lib/store';
-import { formatDate, formatMoney, getPoleName, getMachineName, filterByPole } from '@/lib/utils';
+import { formatDate, formatMoney, getPoleName, getMachineName, filterByPole, getTechName } from '@/lib/utils';
 import type { DemandeAchat, Machine, Piece, Intervention, Pole, Signalement } from '@/lib/types';
 
 type View = 'list' | 'detail' | 'form';
@@ -23,6 +23,8 @@ export default function DAPage() {
 
   const statuts = ['Brouillon', 'Soumise', 'Validee', 'Commandee', 'Receptionnee', 'Refusee'];
 
+  const exportCSV = () => { const das = Store.getAll<DemandeAchat>('demandes_achat'); const lines = ['Ref;Date;Type;Urgence;Designation;Quantite;Montant;Fournisseur;Statut;Demandeur;Justification']; das.forEach((d) => lines.push([d.ref, formatDate(d.date), d.type_achat, d.urgence, '"' + (d.designation || '').replace(/"/g, '""') + '"', d.quantite, d.montant_estime, d.fournisseur_propose || '', d.statut, d.demandeur || '', '"' + (d.justification || '').replace(/"/g, '""') + '"'].join(';'))); const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'da_export.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
+
   if (view === 'list') {
     let das = filterByPole(Store.getAll<DemandeAchat>('demandes_achat'), activePole);
     if (filterStatut !== 'all') das = das.filter((d) => d.statut === filterStatut);
@@ -38,6 +40,8 @@ export default function DAPage() {
         </div>
         <div className="int-toolbar-right">
           {hasPermission('da_create') && <button className="btn btn-primary" onClick={() => { setCurrentId(null); setView('form'); }}>➕ Nouvelle DA</button>}
+          {hasPermission('export') && <button className="btn btn-outline" onClick={exportCSV}>📥 CSV</button>}
+          <button className="btn btn-outline" onClick={() => window.print()}>🖨</button>
         </div>
       </div>
       <div className="da-workflow-bar">{statuts.map((s) => <div key={s} className={'da-wf-step' + (filterStatut === s ? ' active' : '')} style={{ cursor: 'pointer' }} onClick={() => setFilterStatut(s)}><div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{counts[s]}</div>{s}</div>)}</div>

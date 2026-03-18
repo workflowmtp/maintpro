@@ -7,13 +7,14 @@ import { StatusBadge } from '@/components/ui/Badge';
 import { Pagination, paginate } from '@/components/ui/Pagination';
 import { Modal } from '@/components/ui/Modal';
 import Store from '@/lib/store';
-import { formatDateTime, formatMoney, getMachineName } from '@/lib/utils';
+import { formatDateTime, formatMoney, getMachineName, formatDate } from '@/lib/utils';
 import type { Piece, StockMovement, Machine, Organe, Intervention, DemandeAchat } from '@/lib/types';
 
 type View = 'list' | 'detail' | 'movement';
 
 export default function StockPage() {
-  const { hasPermission } = useAuth();
+  const auth = useAuth();
+  const { hasPermission } = auth;
   const { toast } = useApp();
   const [view, setView] = useState<View>('list');
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -24,6 +25,11 @@ export default function StockPage() {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
+
+  const exportCSV = () => { const pieces = Store.getAll<Piece>('pieces'); const lines = ['Ref;Designation;Prix unitaire;Stock;Seuil;Emplacement;Fournisseur;Delai']; pieces.forEach((p) => lines.push([p.ref, p.designation, p.prix_unitaire, p.stock_actuel, p.seuil_reappro, p.emplacement || '', p.fournisseur || '', p.delai_livraison || ''].join(';'))); const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'stock_export.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
+  const importCSV = () => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv'; input.onchange = (e: any) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev: any) => { const lines = ev.target.result.split('\n'); let count = 0; for (let i = 1; i < lines.length; i++) { const cols = lines[i].split(';'); if (cols.length < 4) continue; Store.upsert('pieces', { id: Store.generateId('pce'), ref: cols[0].trim(), designation: cols[1].trim(), prix_unitaire: parseInt(cols[2]) || 0, stock_actuel: parseInt(cols[3]) || 0, seuil_reappro: parseInt(cols[4]) || 0, emplacement: (cols[5] || '').trim(), machine_id: null, organe_id: null, fournisseur: (cols[6] || '').trim(), delai_livraison: parseInt(cols[7]) || 0 } as Piece); count++; } toast(count + ' pieces importees', 'success'); refresh(); }; reader.readAsText(file); }; input.click(); };
+  const createDAFromPiece = (pieceId: string) => { const p = Store.findById<Piece>('pieces', pieceId); if (!p) return; const machine = p.machine_id ? Store.findById<Machine>('machines', p.machine_id) : null; const qtyPropose = Math.max(1, (p.seuil_reappro * 2) - p.stock_actuel); const da: DemandeAchat = { id: Store.generateId('da'), ref: 'DA-' + new Date().getFullYear() + '-' + ('000' + (Store.getAll<DemandeAchat>('demandes_achat').length + 1)).slice(-3), date: new Date().toISOString(), pole_id: machine?.pole_id || '', type_achat: 'Piece', urgence: p.stock_actuel === 0 ? 'Critique' : 'Haute', designation: p.designation, quantite: qtyPropose, montant_estime: qtyPropose * p.prix_unitaire, fournisseur_propose: p.fournisseur || '', date_souhaitee: '', machine_id: p.machine_id || '', intervention_id: '', piece_id: p.id, st_id: '', demandeur: auth.user?.nom || '', justification: 'Alerte stock - ' + (p.stock_actuel === 0 ? 'Rupture' : 'Stock bas'), statut: 'Brouillon' as any }; Store.upsert('demandes_achat', da); toast('DA creee: ' + da.ref, 'success'); refresh(); };
+  const savePiece = () => { const ref = gv('pce_ref'), desig = gv('pce_desig'); if (!ref || !desig) { toast('Reference et designation requises', 'error'); return; } const existing = pieceModal && pieceModal !== 'new' ? Store.findById<Piece>('pieces', pieceModal) : null; Store.upsert('pieces', { id: existing?.id || Store.generateId('pce'), ref, designation: desig, prix_unitaire: parseInt(gv('pce_prix')) || 0, stock_actuel: parseInt(gv('pce_stock')) || 0, seuil_reappro: parseInt(gv('pce_seuil')) || 0, emplacement: gv('pce_empl'), machine_id: gv('pce_mach') || null, organe_id: gv('pce_org') || null, fournisseur: gv('pce_fourn'), delai_livraison: parseInt(gv('pce_delai')) || 0 } as Piece); setPieceModal(null); toast(existing ? 'Piece modifiee' : 'Piece creee', 'success'); refresh(); };
 
   if (view === 'list') {
     let pieces = Store.getAll<Piece>('pieces');
@@ -46,6 +52,8 @@ export default function StockPage() {
         </div>
         <div className="int-toolbar-right">
           {hasPermission('stock_edit') && <><button className="btn btn-primary" onClick={() => setView('movement')}>📦 Mouvement</button><button className="btn btn-outline" onClick={() => setPieceModal('new')}>➕ Piece</button></>}
+          {hasPermission('stock_import') && <button className="btn btn-outline" onClick={importCSV}>📨 Import CSV</button>}
+          {hasPermission('stock_export') && <button className="btn btn-outline" onClick={exportCSV}>📥 Export CSV</button>}
         </div>
       </div>
       <div className="stock-summary">
@@ -55,7 +63,7 @@ export default function StockPage() {
       </div>
       <div className="data-table-wrap">
         <div className="data-table-header"><div className="data-table-title">Pieces ({pieces.length})</div></div>
-        <table className="data-table"><thead><tr><th>Ref</th><th>Designation</th><th>Stock</th><th>Seuil</th><th>Niveau</th><th>Prix</th><th>Machine</th><th>Fournisseur</th></tr></thead><tbody>
+        <table className="data-table"><thead><tr><th>Ref</th><th>Designation</th><th>Stock</th><th>Seuil</th><th>Niveau</th><th>Prix</th><th>Machine</th><th>Fournisseur</th><th>Actions</th></tr></thead><tbody>
           {paged.map((p) => {
             const lvl = p.stock_actuel === 0 ? 'crit' : p.stock_actuel <= p.seuil_reappro ? 'warn' : 'ok';
             const pct = p.seuil_reappro > 0 ? Math.min(100, Math.round((p.stock_actuel / (p.seuil_reappro * 3)) * 100)) : 100;
@@ -64,6 +72,11 @@ export default function StockPage() {
               <td>{p.designation}</td><td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{p.stock_actuel}</td><td style={{ color: 'var(--text-muted)' }}>{p.seuil_reappro}</td>
               <td>{p.stock_actuel === 0 ? <span className="badge badge-red">RUPTURE</span> : p.stock_actuel <= p.seuil_reappro ? <span className="badge badge-orange">BAS</span> : <span className="badge badge-green">OK</span>}<div className="stock-bar"><div className={'stock-bar-fill ' + lvl} style={{ width: pct + '%' }} /></div></td>
               <td>{formatMoney(p.prix_unitaire)}</td><td>{getMachineName(p.machine_id)}</td><td>{p.fournisseur || '-'}</td>
+              <td><div style={{ display: 'flex', gap: 4 }}>
+                <button className="btn-icon" title="Detail" onClick={() => { setCurrentId(p.id); setView('detail'); }}>👁</button>
+                {hasPermission('stock_edit') && <button className="btn-icon" title="Modifier" onClick={() => setPieceModal(p.id)}>✏</button>}
+                {p.stock_actuel <= p.seuil_reappro && hasPermission('da_create') && <button className="btn-icon" title="Creer DA" onClick={() => createDAFromPiece(p.id)} style={{ color: 'var(--accent-orange)' }}>📄</button>}
+              </div></td>
             </tr>);
           })}
         </tbody></table>
@@ -81,6 +94,14 @@ export default function StockPage() {
           })}
         </div>
       </div>
+      {pieceModal && (() => { const editPc = pieceModal !== 'new' ? Store.findById<Piece>('pieces', pieceModal) : null; const machines = Store.getAll<Machine>('machines'); const organes = Store.getAll<Organe>('organes'); return <Modal isOpen={true} title={editPc ? 'Modifier piece' : 'Nouvelle piece'} onClose={() => setPieceModal(null)}>
+        <div className="form-row"><div className="form-group"><label className="form-label">Reference *</label><input className="form-input" id="pce_ref" defaultValue={editPc?.ref || ''} /></div><div className="form-group"><label className="form-label">Designation *</label><input className="form-input" id="pce_desig" defaultValue={editPc?.designation || ''} /></div></div>
+        <div className="form-row-3"><div className="form-group"><label className="form-label">Prix unitaire</label><input className="form-input" type="number" id="pce_prix" defaultValue={editPc?.prix_unitaire || ''} /></div><div className="form-group"><label className="form-label">Stock actuel</label><input className="form-input" type="number" id="pce_stock" defaultValue={editPc?.stock_actuel ?? 0} /></div><div className="form-group"><label className="form-label">Seuil reappro</label><input className="form-input" type="number" id="pce_seuil" defaultValue={editPc?.seuil_reappro ?? 0} /></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Machine</label><select className="form-select" id="pce_mach" defaultValue={editPc?.machine_id || ''}><option value="">--</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Organe</label><select className="form-select" id="pce_org" defaultValue={editPc?.organe_id || ''}><option value="">--</option>{organes.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}</select></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Emplacement</label><input className="form-input" id="pce_empl" defaultValue={editPc?.emplacement || ''} /></div><div className="form-group"><label className="form-label">Fournisseur</label><input className="form-input" id="pce_fourn" defaultValue={editPc?.fournisseur || ''} /></div></div>
+        <div className="form-group"><label className="form-label">Delai livraison (jours)</label><input className="form-input" type="number" id="pce_delai" defaultValue={editPc?.delai_livraison || ''} /></div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}><button className="btn btn-primary" onClick={savePiece}>Confirmer</button><button className="btn btn-outline" onClick={() => setPieceModal(null)}>Annuler</button></div>
+      </Modal>; })()}
     </>);
   }
 

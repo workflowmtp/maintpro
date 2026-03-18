@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
-import { _setCache, _setSingle } from '@/lib/store';
+import { _setCache, _setSingle, _getCache } from '@/lib/store';
+import { initDemoData } from '@/lib/demo-data';
 
 const COLLECTIONS = [
   'users', 'poles', 'ateliers', 'techniciens', 'operateurs', 'chefs_atelier',
@@ -75,6 +76,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           _setSingle('role_permissions', permsMap);
         }
       } catch {}
+
+      // Fallback: if DB is empty, load demo data into client-side Store
+      const cache = _getCache();
+      const hasMachines = cache['machines'] && cache['machines'].length > 0;
+      if (!hasMachines) {
+        console.info('[MaintPro] DB vide — chargement des donnees demo');
+        if (typeof window !== 'undefined') localStorage.removeItem('mp3_demo_loaded');
+        initDemoData();
+      }
+
       setLoaded(true);
     } catch (err: any) {
       setError(err.message || 'Erreur de chargement des donnees');

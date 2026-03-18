@@ -8,7 +8,7 @@ import { Pagination, paginate } from '@/components/ui/Pagination';
 import { Modal } from '@/components/ui/Modal';
 import Store from '@/lib/store';
 import { formatDate, formatDateTime, formatMoney, getPoleName, getMachineName, getTechName, getAtelierName, pad2, toLocalDT, filterByPole, getUsersByRole } from '@/lib/utils';
-import type { Intervention, Machine, Cause, Piece, Action, Signalement, User } from '@/lib/types';
+import type { Intervention, Machine, Cause, Piece, Action, Signalement, User, StockMovement } from '@/lib/types';
 
 type View = 'list' | 'detail' | 'workflow' | 'form';
 
@@ -24,9 +24,24 @@ export default function InterventionsPage() {
   const [page, setPage] = useState(1);
   const [, setTick] = useState(0);
   const [pieceModal, setPieceModal] = useState(false);
+  const [stepIdx, setStepIdx] = useState(0);
+  const [timerDisplay, setTimerDisplay] = useState<Record<string, string>>({});
   const timers = useRef<Record<string, { startTime: number; elapsed: number; running: boolean; interval: any }>>({});
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
+
+  const fmtTimer = (ms: number) => { const s = Math.floor(ms / 1000); return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor((s % 3600) / 60)) + ':' + pad2(s % 60); };
+  const timerStart = (key: string, intId: string) => { const tKey = key + '_' + intId; timers.current[tKey] = { startTime: Date.now(), elapsed: 0, running: true, interval: setInterval(() => { const t = timers.current[tKey]; if (t?.running) setTimerDisplay((p) => ({ ...p, [key]: fmtTimer(t.elapsed + Date.now() - t.startTime) })); }, 1000) }; refresh(); };
+  const timerPause = (key: string, intId: string) => { const tKey = key + '_' + intId; const t = timers.current[tKey]; if (!t) return; t.elapsed += Date.now() - t.startTime; t.running = false; clearInterval(t.interval); refresh(); };
+  const timerResume = (key: string, intId: string) => { const tKey = key + '_' + intId; const t = timers.current[tKey]; if (!t) return; t.startTime = Date.now(); t.running = true; t.interval = setInterval(() => { if (t.running) setTimerDisplay((p) => ({ ...p, [key]: fmtTimer(t.elapsed + Date.now() - t.startTime) })); }, 1000); refresh(); };
+  const timerStop = (key: string, intId: string) => { const tKey = key + '_' + intId; const t = timers.current[tKey]; if (!t) return; if (t.running) t.elapsed += Date.now() - t.startTime; t.running = false; clearInterval(t.interval); const minutes = Math.round(t.elapsed / 60000); const intv = Store.findById<Intervention>('interventions', intId); if (intv) { if (!intv.workflow) intv.workflow = {}; const sk = key === 'diag' ? 'step5' : 'step6'; if (!intv.workflow[sk as keyof typeof intv.workflow]) (intv.workflow as any)[sk] = {}; (intv.workflow as any)[sk].duree_minutes = minutes; (intv.workflow as any)[sk].duree_ms = t.elapsed; if (key === 'diag') intv.duree_diagnostic_min = minutes; else { intv.duree_intervention_min = minutes; intv.duree_minutes = (intv.duree_diagnostic_min || 0) + minutes; } Store.upsert('interventions', intv); } delete timers.current[tKey]; toast('Timer ' + (key === 'diag' ? 'diagnostic' : 'intervention') + ': ' + minutes + ' min', 'info'); refresh(); };
+  const getTimerState = (key: string, intId: string) => { const t = timers.current[key + '_' + intId]; if (!t) return 'idle'; return t.running ? 'running' : 'paused'; };
+
+  const duplicateInt = (intId: string) => { const orig = Store.findById<Intervention>('interventions', intId); if (!orig) return; const n = JSON.parse(JSON.stringify(orig)); n.id = Store.generateId('int'); n.ref = 'INT-' + new Date().getFullYear() + '-' + ('000' + (Store.getAll<Intervention>('interventions').length + 1)).slice(-3); n.date = new Date().toISOString(); n.statut = 'Brouillon'; n.chef_validation_id = null; n.workflow = {}; n.pieces_utilisees = []; Store.upsert('interventions', n); toast('Dupliquee: ' + n.ref, 'success'); refresh(); };
+  const deleteInt = (intId: string) => { if (!confirm('Supprimer cette intervention ?')) return; Store.deleteById('interventions', intId); toast('Intervention supprimee', 'warning'); refresh(); };
+  const exportCSV = () => { const all = Store.getAll<Intervention>('interventions'); const lines = ['Reference;Date;Machine;Pole;Type;Statut;Technicien;Duree(min);Panne repetitive;Description']; all.forEach((i) => lines.push([i.ref, formatDate(i.date), getMachineName(i.machine_id), getPoleName(i.pole_id), i.type, i.statut, getTechName(i.technicien_principal_id), i.duree_minutes || 0, i.panne_repetitive ? 'Oui' : 'Non', '"' + (i.description || '').replace(/"/g, '""') + '"'].join(';'))); const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'interventions_export.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
+  const addPieceToWf = (intId: string) => { setPieceModal(true); };
+  const confirmAddPiece = (intId: string) => { const pieceId = gv('wf_add_piece_id'); const qty = parseInt(gv('wf_add_piece_qty')) || 1; if (!pieceId) return; const piece = Store.findById<Piece>('pieces', pieceId); if (piece && piece.stock_actuel < qty) { toast('Stock insuffisant ! Disponible: ' + piece.stock_actuel, 'error'); return; } const intv = Store.findById<Intervention>('interventions', intId); if (!intv) return; if (!intv.pieces_utilisees) intv.pieces_utilisees = []; intv.pieces_utilisees.push({ piece_id: pieceId, quantite: qty }); if (piece) { piece.stock_actuel -= qty; Store.upsert('pieces', piece); const mvts = Store.getAll<StockMovement>('stock_movements'); mvts.push({ id: Store.generateId('mvt'), piece_id: pieceId, type: 'Sortie', quantite: qty, date: new Date().toISOString(), intervention_id: intId, commentaire: 'Sortie pour ' + intv.ref, operateur: 'Systeme' }); Store.set('stock_movements', mvts); } Store.upsert('interventions', intv); setPieceModal(false); toast('Piece ajoutee et stock mis a jour', 'success'); refresh(); };
 
   // ===== LIST =====
   if (view === 'list') {
@@ -42,16 +57,18 @@ export default function InterventionsPage() {
     const paged = paginate(ints, page, 10);
     const tC = ints.filter((it) => it.type === 'Curatif').length, tP = ints.filter((it) => it.type === 'Preventif').length;
     const tEC = ints.filter((it) => it.statut === 'En cours' || it.statut === 'En attente piece').length;
+    const tT = ints.filter((it) => it.statut === 'Termine' || it.statut === 'Valide production').length;
 
     return (<>
       <div className="int-toolbar">
         <div className="int-toolbar-left">
           <input className="int-search" placeholder="Rechercher..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           <select className="int-filter-select" value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(1); }}><option value="all">Tous types</option><option value="Curatif">Curatif</option><option value="Preventif">Preventif</option></select>
-          <select className="int-filter-select" value={filterStatut} onChange={(e) => { setFilterStatut(e.target.value); setPage(1); }}><option value="all">Tous statuts</option>{['Brouillon','En cours','Termine','Valide production','En attente piece'].map((s) => <option key={s} value={s}>{s}</option>)}</select>
+          <select className="int-filter-select" value={filterStatut} onChange={(e) => { setFilterStatut(e.target.value); setPage(1); }}><option value="all">Tous statuts</option>{['Brouillon','En attente autorisation','Autorise','En cours','Termine','Valide production','En attente piece'].map((s) => <option key={s} value={s}>{s}</option>)}</select>
         </div>
         <div className="int-toolbar-right">
           {hasPermission('interventions_create') && <button className="btn btn-primary" onClick={() => { setCurrentId(null); setView('form'); }}>➕ Nouvelle</button>}
+          {hasPermission('export') && <button className="btn btn-outline" onClick={exportCSV}>📥 CSV</button>}
           <button className="btn btn-outline" onClick={() => window.print()}>🖨</button>
         </div>
       </div>
@@ -60,20 +77,23 @@ export default function InterventionsPage() {
         <div className="int-stat"><span className="int-stat-val" style={{ color: 'var(--accent-orange)' }}>{tC}</span><span className="int-stat-label">Curatif</span></div>
         <div className="int-stat"><span className="int-stat-val" style={{ color: 'var(--accent-green)' }}>{tP}</span><span className="int-stat-label">Preventif</span></div>
         <div className="int-stat"><span className="int-stat-val" style={{ color: 'var(--accent-blue)' }}>{tEC}</span><span className="int-stat-label">En cours</span></div>
+        <div className="int-stat"><span className="int-stat-val" style={{ color: 'var(--accent-green)' }}>{tT}</span><span className="int-stat-label">Termines</span></div>
       </div>
       <div className="data-table-wrap">
-        <table className="data-table"><thead><tr><th>Ref</th><th>Date</th><th>Machine</th><th>Type</th><th>Statut</th><th>Technicien</th><th>Duree</th><th>Actions</th></tr></thead><tbody>
-          {paged.length === 0 ? <tr><td colSpan={8} className="data-table-empty">Aucune intervention</td></tr> : paged.map((it) => (
+        <table className="data-table"><thead><tr><th>Ref</th><th>Date</th><th>Machine</th><th>Pole</th><th>Type</th><th>Statut</th><th>Technicien</th><th>Duree</th><th>Actions</th></tr></thead><tbody>
+          {paged.length === 0 ? <tr><td colSpan={9} className="data-table-empty">Aucune intervention</td></tr> : paged.map((it) => (
             <tr key={it.id}>
               <td><strong style={{ cursor: 'pointer', color: 'var(--accent-blue)' }} onClick={() => { setCurrentId(it.id); setView('detail'); }}>{it.ref}</strong>{it.panne_repetitive && <span className="badge badge-red" style={{ marginLeft: 4 }}>🔄</span>}</td>
-              <td>{formatDate(it.date)}</td><td>{getMachineName(it.machine_id)}</td>
+              <td>{formatDate(it.date)}</td><td>{getMachineName(it.machine_id)}</td><td>{getPoleName(it.pole_id)}</td>
               <td>{it.type === 'Curatif' ? <span className="badge badge-orange">Curatif</span> : <span className="badge badge-green">Preventif</span>}</td>
               <td><StatusBadge statut={it.statut} /></td><td>{getTechName(it.technicien_principal_id)}</td>
               <td style={{ fontFamily: 'var(--font-mono)' }}>{it.duree_minutes || 0} min</td>
               <td><div style={{ display: 'flex', gap: 4 }}>
                 <button className="btn-icon" title="Voir" onClick={() => { setCurrentId(it.id); setView('detail'); }}>👁</button>
-                {it.type === 'Curatif' && <button className="btn-icon" title="Workflow" onClick={() => { setCurrentId(it.id); setView('workflow'); }}>⚙</button>}
+                {it.type === 'Curatif' && <button className="btn-icon" title="Workflow" onClick={() => { setCurrentId(it.id); const wfi = Store.findById<Intervention>('interventions', it.id); setStepIdx(wfi?.workflow?.current_step || 0); setView('workflow'); }}>⚙</button>}
                 {hasPermission('interventions_edit') && <button className="btn-icon" title="Modifier" onClick={() => { setCurrentId(it.id); setView('form'); }}>✏</button>}
+                {hasPermission('interventions_create') && <button className="btn-icon" title="Dupliquer" onClick={() => duplicateInt(it.id)}>📋</button>}
+                {hasPermission('interventions_delete') && <button className="btn-icon" title="Supprimer" onClick={() => deleteInt(it.id)}>🗑</button>}
               </div></td>
             </tr>
           ))}
@@ -102,7 +122,7 @@ export default function InterventionsPage() {
         {it.type === 'Curatif' ? <span className="badge badge-orange">Curatif</span> : <span className="badge badge-green">Preventif</span>}
         {it.panne_repetitive && <span className="badge badge-red">🔄 Repetitive</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          {it.type === 'Curatif' && <button className="btn btn-primary btn-sm" onClick={() => setView('workflow')}>⚙ Workflow</button>}
+          {it.type === 'Curatif' && <button className="btn btn-primary btn-sm" onClick={() => { const wfi = Store.findById<Intervention>('interventions', it.id); setStepIdx(wfi?.workflow?.current_step || 0); setView('workflow'); }}>⚙ Workflow</button>}
           {hasPermission('interventions_edit') && <button className="btn btn-outline btn-sm" onClick={() => setView('form')}>✏ Modifier</button>}
         </div>
       </div>
@@ -126,7 +146,6 @@ export default function InterventionsPage() {
     const it = Store.findById<Intervention>('interventions', currentId);
     if (!it) { setView('list'); return null; }
     const wf = it.workflow || {};
-    const [stepIdx, setStepIdx] = useState(wf.current_step || 0);
     const steps = [
       { num: 1, label: 'Validation technicien', key: 'step3' },
       { num: 2, label: 'Autorisation', key: 'step4' },
@@ -197,16 +216,29 @@ export default function InterventionsPage() {
               <div className="form-group"><label className="form-label">Motif</label><textarea className="form-textarea" id="wf_motif" defaultValue={d.motif || ''} /></div>
               <div className="form-row"><div className="form-group"><label className="form-label">Date</label><input className="form-input" type="date" id="wf_date_auth" defaultValue={d.date_autorisation || ''} /></div><div className="form-group"><label className="form-label">Statut</label><select className="form-select" id="wf_statut_auth" defaultValue={d.statut_autorisation || ''}><option value="">--</option><option value="Autorise">Autorise</option><option value="Refuse">Refuse</option></select></div></div>
               <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => saveStep('step4', stepIdx)}>💾 Sauvegarder</button></>}</>;
-          if (sk === 'step5') return <><div className="wf-step-title"><span style={{ color: 'var(--accent-blue)' }}>Etape 3</span> Diagnostic</div>
-            <div className="timer-block"><div className="timer-label">Timer Diagnostic</div><div className="timer-display">00:00:00</div></div>
-            {d.duree_minutes && <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Duree: <strong>{d.duree_minutes} min</strong></div>}
+          if (sk === 'step5') { const ts = getTimerState('diag', it.id); return <><div className="wf-step-title"><span style={{ color: 'var(--accent-blue)' }}>Etape 3</span> Diagnostic</div>
+            <div className="timer-block"><div className="timer-label">Timer Diagnostic</div><div className={`timer-display${ts === 'running' ? ' running' : ts === 'paused' ? ' paused' : ''}`}>{timerDisplay.diag || (d.duree_ms ? fmtTimer(d.duree_ms) : '00:00:00')}</div>
+            <div className="timer-actions">
+              {ts === 'idle' && <button className="btn btn-success btn-sm" onClick={() => timerStart('diag', it.id)}>▶ Demarrer</button>}
+              {ts === 'running' && <><button className="btn btn-outline btn-sm" onClick={() => timerPause('diag', it.id)}>⏸ Pause</button><button className="btn btn-danger btn-sm" onClick={() => timerStop('diag', it.id)}>⏹ Terminer</button></>}
+              {ts === 'paused' && <><button className="btn btn-outline btn-sm" onClick={() => timerResume('diag', it.id)}>▶ Reprendre</button><button className="btn btn-danger btn-sm" onClick={() => timerStop('diag', it.id)}>⏹ Terminer</button></>}
+            </div></div>
+            {d.duree_minutes && <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Duree enregistree: <strong>{d.duree_minutes} min</strong></div>}
             <div className="form-group"><label className="form-label">Notes diagnostic</label><textarea className="form-textarea" id="wf_notes_diag" defaultValue={d.notes || ''} /></div>
-            <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => saveStep('step5', stepIdx)}>💾 Sauvegarder</button></>;
-          if (sk === 'step6') return <><div className="wf-step-title"><span style={{ color: 'var(--accent-blue)' }}>Etape 4</span> Intervention</div>
-            <div className="timer-block"><div className="timer-label">Timer Intervention</div><div className="timer-display">00:00:00</div></div>
+            <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => saveStep('step5', stepIdx)}>💾 Sauvegarder</button></>; }
+          if (sk === 'step6') { const ts6 = getTimerState('int', it.id); return <><div className="wf-step-title"><span style={{ color: 'var(--accent-blue)' }}>Etape 4</span> Intervention</div>
+            <div className="timer-block"><div className="timer-label">Timer Intervention Curative</div><div className={`timer-display${ts6 === 'running' ? ' running' : ts6 === 'paused' ? ' paused' : ''}`}>{timerDisplay.int || (d.duree_ms ? fmtTimer(d.duree_ms) : '00:00:00')}</div>
+            <div className="timer-actions">
+              {ts6 === 'idle' && <button className="btn btn-success btn-sm" onClick={() => timerStart('int', it.id)}>▶ Demarrer</button>}
+              {ts6 === 'running' && <><button className="btn btn-outline btn-sm" onClick={() => timerPause('int', it.id)}>⏸ Pause</button><button className="btn btn-danger btn-sm" onClick={() => timerStop('int', it.id)}>⏹ Terminer</button></>}
+              {ts6 === 'paused' && <><button className="btn btn-outline btn-sm" onClick={() => timerResume('int', it.id)}>▶ Reprendre</button><button className="btn btn-danger btn-sm" onClick={() => timerStop('int', it.id)}>⏹ Terminer</button></>}
+            </div></div>
+            {d.duree_minutes && <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Duree enregistree: <strong>{d.duree_minutes} min</strong></div>}
             <div className="form-group"><label className="form-label">Travaux realises</label><textarea className="form-textarea" id="wf_travaux" defaultValue={d.travaux || ''} /></div>
-            <div style={{ marginTop: 12 }}><label className="form-label">Pieces utilisees</label>{(d.pieces_utilisees || it.pieces_utilisees || []).map((pu: any, i: number) => { const pc = Store.findById<Piece>('pieces', pu.piece_id); return <div key={i} className="piece-row"><span>{pc?.designation || pu.piece_id}</span><span className="piece-row-qty">x{pu.quantite}</span></div>; })}</div>
-            <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => saveStep('step6', stepIdx)}>💾 Sauvegarder</button></>;
+            <div style={{ marginTop: 12 }}><label className="form-label">Pieces utilisees</label>{(d.pieces_utilisees || it.pieces_utilisees || []).map((pu: any, i: number) => { const pc = Store.findById<Piece>('pieces', pu.piece_id); return <div key={i} className="piece-row"><div className="piece-row-info">{pc ? pc.ref + ' - ' + pc.designation : pu.piece_id}</div><span className="piece-row-qty">x{pu.quantite}</span>{pc && <span>{formatMoney(pc.prix_unitaire * pu.quantite)}</span>}</div>; })}
+            <button className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={() => addPieceToWf(it.id)}>➕ Ajouter piece</button></div>
+            {pieceModal && <Modal isOpen={true} title="Ajouter une piece" onClose={() => setPieceModal(false)}><div className="form-group"><label className="form-label">Piece</label><select className="form-select" id="wf_add_piece_id">{pieces.map((p) => <option key={p.id} value={p.id}>{p.ref} - {p.designation} (Stock: {p.stock_actuel})</option>)}</select></div><div className="form-group"><label className="form-label">Quantite</label><input className="form-input" type="number" id="wf_add_piece_qty" defaultValue={1} min={1} /></div><div style={{ display: 'flex', gap: 8, marginTop: 16 }}><button className="btn btn-primary" onClick={() => confirmAddPiece(it.id)}>Confirmer</button><button className="btn btn-outline" onClick={() => setPieceModal(false)}>Annuler</button></div></Modal>}
+            <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => saveStep('step6', stepIdx)}>💾 Sauvegarder</button></>; }
           if (sk === 'step7') return <><div className="wf-step-title"><span style={{ color: 'var(--accent-blue)' }}>Etape 5</span> Cloture technique</div>
             <div className="form-group"><label className="form-label">Cause</label><Sel id="wf_cause" items={causes} vk="id" lk="nom" val={d.cause_id || it.cause_id} /></div>
             <div className="form-group"><label className="form-label">Action corrective</label><textarea className="form-textarea" id="wf_action_corr" defaultValue={d.action_corrective || ''} /></div>
@@ -254,7 +286,7 @@ export default function InterventionsPage() {
     <div className="int-detail-card" style={{ maxWidth: 900 }}>
       <div className="form-row">
         <div className="form-group"><label className="form-label">Type *</label><select className="form-select" id="frm_type" defaultValue={it?.type || ''}><option value="">--</option><option value="Curatif">Curatif</option><option value="Preventif">Preventif</option></select></div>
-        <div className="form-group"><label className="form-label">Statut</label><select className="form-select" id="frm_statut" defaultValue={it?.statut || 'Brouillon'}>{['Brouillon','En cours','Termine','Valide production','En attente piece'].map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Statut</label><select className="form-select" id="frm_statut" defaultValue={it?.statut || 'Brouillon'}>{['Brouillon','En attente autorisation','Autorise','En cours','Termine','Valide production','En attente piece'].map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
       </div>
       <div className="form-row">
         <div className="form-group"><label className="form-label">Date *</label><input className="form-input" type="datetime-local" id="frm_date" defaultValue={it ? toLocalDT(it.date) : toLocalDT(new Date().toISOString())} /></div>

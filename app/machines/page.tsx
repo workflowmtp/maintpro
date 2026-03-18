@@ -6,9 +6,10 @@ import { useApp } from '@/contexts/AppContext';
 import { StatusBadge, CriticiteBadge } from '@/components/ui/Badge';
 import Store from '@/lib/store';
 import { formatDate, formatMoney, getPoleName, getAtelierName, filterByPole, getUsersByRole } from '@/lib/utils';
+import { Modal } from '@/components/ui/Modal';
 import type { Machine, Intervention, Piece, Organe, TachePreventive, Pole, Atelier, User } from '@/lib/types';
 
-type View = 'grid' | 'detail' | 'form';
+type View = 'grid' | 'detail' | 'form' | 'organes';
 
 export default function MachinesPage() {
   const { hasPermission } = useAuth();
@@ -18,8 +19,11 @@ export default function MachinesPage() {
   const [search, setSearch] = useState('');
   const [filterCrit, setFilterCrit] = useState('all');
   const [, setTick] = useState(0);
+  const [orgModal, setOrgModal] = useState<string | null>(null);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
+
+  const exportCSV = () => { const machines = Store.getAll<Machine>('machines'); const lines = ['Nom;Code;Pole;Atelier;Criticite;Etat;Disponibilite;Heures;Tours']; machines.forEach((m) => lines.push([m.nom, m.code, getPoleName(m.pole_id), getAtelierName(m.atelier_id), m.criticite, m.etat, m.disponibilite, m.heures_courantes, m.tours_courants || ''].join(';'))); const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'machines_export.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
 
   if (view === 'grid') {
     let machines = filterByPole(Store.getAll<Machine>('machines'), activePole);
@@ -27,18 +31,24 @@ export default function MachinesPage() {
     if (filterCrit !== 'all') machines = machines.filter((m) => m.criticite === filterCrit);
     const all = Store.getAll<Machine>('machines');
     const panne = all.filter((m) => m.etat === 'En panne').length;
+    const critique = all.filter((m) => m.criticite === 'Critique').length;
 
     return (<>
       <div className="int-toolbar">
         <div className="int-toolbar-left">
           <input className="int-search" placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} />
           <select className="int-filter-select" value={filterCrit} onChange={(e) => setFilterCrit(e.target.value)}><option value="all">Toutes</option><option value="Critique">Critique</option><option value="Important">Important</option><option value="Standard">Standard</option></select>
+          <button className="btn btn-outline btn-sm" onClick={() => setView('organes')}>⚙ Organes</button>
         </div>
-        <div className="int-toolbar-right">{hasPermission('parametrage_edit') && <button className="btn btn-primary btn-sm" onClick={() => { setCurrentId(null); setView('form'); }}>➕ Machine</button>}</div>
+        <div className="int-toolbar-right">
+          {hasPermission('parametrage_edit') && <button className="btn btn-primary btn-sm" onClick={() => { setCurrentId(null); setView('form'); }}>➕ Machine</button>}
+          <button className="btn btn-outline btn-sm" onClick={exportCSV}>📥 CSV</button>
+        </div>
       </div>
       <div className="int-stats-bar">
         <div className="int-stat"><span className="int-stat-val">{all.length}</span><span className="int-stat-label">Machines</span></div>
         <div className="int-stat"><span className="int-stat-val" style={{ color: 'var(--accent-red)' }}>{panne}</span><span className="int-stat-label">En panne</span></div>
+        <div className="int-stat"><span className="int-stat-val" style={{ color: 'var(--accent-orange)' }}>{critique}</span><span className="int-stat-label">Critiques</span></div>
         <div className="int-stat"><span className="int-stat-val" style={{ color: 'var(--accent-green)' }}>{all.length - panne}</span><span className="int-stat-label">En service</span></div>
       </div>
       <div className="mach-grid">
@@ -71,7 +81,10 @@ export default function MachinesPage() {
     const ints = Store.getAll<Intervention>('interventions').filter((it) => it.machine_id === m.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const pcs = Store.getAll<Piece>('pieces').filter((p) => p.machine_id === m.id);
     const orgs = Store.getAll<Organe>('organes').filter((o) => o.machine_id === m.id);
+    const tachesPrev = Store.getAll<TachePreventive>('taches_preventives').filter((t) => t.machine_id === m.id);
     const nbCur = ints.filter((i) => i.type === 'Curatif').length;
+    const nbPrev = ints.filter((i) => i.type === 'Preventif').length;
+    const pannesRep = ints.filter((i) => i.panne_repetitive).length;
     let cost = 0; ints.forEach((i) => i.pieces_utilisees?.forEach((pu) => { const pc = Store.findById<Piece>('pieces', pu.piece_id); if (pc) cost += pc.prix_unitaire * pu.quantite; }));
     const dispoColor = m.disponibilite >= 90 ? 'var(--accent-green)' : m.disponibilite >= 75 ? 'var(--accent-orange)' : 'var(--accent-red)';
     const DR = ({ l, v }: { l: string; v: React.ReactNode }) => <div className="int-detail-row"><span className="int-detail-label">{l}</span><span className="int-detail-value">{v}</span></div>;
@@ -84,12 +97,48 @@ export default function MachinesPage() {
       </div>
       <div className="int-detail-grid">
         <div className="int-detail-card"><div className="int-detail-card-title">⚙ Fiche</div><DR l="Pole" v={getPoleName(m.pole_id)} /><DR l="Atelier" v={getAtelierName(m.atelier_id)} /><DR l="Chef" v={chef?.nom || '-'} /><DR l="H prevues/mois" v={m.heures_prevues_mois + ' h'} /><DR l="H courantes" v={m.heures_courantes.toLocaleString() + ' h'} />{m.tours_courants > 0 && <DR l="Tours" v={m.tours_courants.toLocaleString()} />}</div>
-        <div className="int-detail-card"><div className="int-detail-card-title">📊 KPI</div><div className="mach-dispo-ring" style={{ border: '4px solid ' + dispoColor, color: dispoColor }}>{m.disponibilite}%</div><div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>Disponibilite</div><DR l="Interventions" v={ints.length} /><DR l="Curatives" v={nbCur} /><DR l="Cout maint." v={formatMoney(cost)} /></div>
+        <div className="int-detail-card"><div className="int-detail-card-title">📊 KPI</div><div className="mach-dispo-ring" style={{ border: '4px solid ' + dispoColor, color: dispoColor }}>{m.disponibilite}%</div><div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>Disponibilite</div><DR l="Interventions" v={ints.length} /><DR l="Curatives" v={nbCur} /><DR l="Preventives" v={nbPrev} /><DR l="Pannes rep." v={pannesRep > 0 ? <span className="badge badge-red">{pannesRep}</span> : '0'} /><DR l="Cout maint." v={formatMoney(cost)} /></div>
       </div>
       {m.techniciens_affectes?.length > 0 && <div className="mach-detail-section"><div className="mach-detail-section-title">👥 Equipe</div><div className="mach-detail-section-body">{m.techniciens_affectes.map((aff, i) => { const t = Store.findById<User>('users', aff.technicien_id); return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}><span className={'mach-team-tag' + (aff.specialite === 'Mecanique' ? ' mec' : aff.specialite === 'Electricite' ? ' elec' : ' poly')}>{aff.specialite}</span><strong>{t?.nom || '?'}</strong><span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{aff.role}</span></div>; })}</div></div>}
       {orgs.length > 0 && <div className="mach-detail-section"><div className="mach-detail-section-title">🔧 Organes ({orgs.length})</div><div className="mach-detail-section-body">{orgs.map((o) => <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}><strong>{o.nom}</strong><span className="badge badge-blue">{o.type}</span></div>)}</div></div>}
+      {tachesPrev.length > 0 && <div className="mach-detail-section"><div className="mach-detail-section-title">📅 Taches preventives ({tachesPrev.length})</div><div className="mach-detail-section-body">{tachesPrev.map((tp) => <div key={tp.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}><strong>{tp.tache}</strong><div style={{ display: 'flex', gap: 8 }}><span className="badge badge-blue">{tp.frequence}</span><span style={{ fontFamily: 'var(--font-mono)' }}>{tp.duree_std_min} min</span></div></div>)}</div></div>}
       {pcs.length > 0 && <div className="mach-detail-section"><div className="mach-detail-section-title">📦 Pieces ({pcs.length})</div><div className="mach-detail-section-body">{pcs.map((p) => <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}><div><strong>{p.ref}</strong> - {p.designation}</div><div style={{ display: 'flex', gap: 8 }}><span style={{ fontFamily: 'var(--font-mono)' }}>Stock: {p.stock_actuel}/{p.seuil_reappro}</span>{p.stock_actuel === 0 ? <span className="badge badge-red">RUPTURE</span> : p.stock_actuel <= p.seuil_reappro ? <span className="badge badge-orange">BAS</span> : <span className="badge badge-green">OK</span>}</div></div>)}</div></div>}
       <div className="mach-detail-section"><div className="mach-detail-section-title">📅 Historique ({Math.min(ints.length, 10)})</div><div className="mach-detail-section-body">{ints.slice(0, 10).map((it) => <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}><strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-blue)' }}>{it.ref}</strong>{it.type === 'Curatif' ? <span className="badge badge-orange">Cur</span> : <span className="badge badge-green">Prev</span>}<StatusBadge statut={it.statut} /><span style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>{formatDate(it.date)}</span></div>)}</div></div>
+    </>);
+  }
+
+  // ===== ORGANES =====
+  if (view === 'organes') {
+    const organes = Store.getAll<Organe>('organes');
+    const machines2 = Store.getAll<Machine>('machines');
+    const saveOrgane = () => {
+      const nom = gv('org_nom'), machId = gv('org_mach');
+      if (!nom || !machId) { toast('Nom et machine requis', 'error'); return; }
+      const existing = orgModal && orgModal !== 'new' ? Store.findById<Organe>('organes', orgModal) : null;
+      Store.upsert('organes', { id: existing?.id || Store.generateId('org'), nom, machine_id: machId, type: gv('org_type') || 'Autre' } as Organe);
+      setOrgModal(null); toast(existing ? 'Organe modifie' : 'Organe cree', 'success'); refresh();
+    };
+    const deleteOrgane = (id: string) => { if (!confirm('Supprimer cet organe ?')) return; Store.deleteById('organes', id); toast('Organe supprime', 'warning'); refresh(); };
+    const editOrg = orgModal && orgModal !== 'new' ? Store.findById<Organe>('organes', orgModal) : null;
+    return (<>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <button className="btn btn-outline btn-sm" onClick={() => setView('grid')}>← Retour machines</button>
+        <span style={{ fontSize: '1.2rem', fontWeight: 700 }}>Gestion des organes ({organes.length})</span>
+        {hasPermission('parametrage_edit') && <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setOrgModal('new')}>➕ Nouvel organe</button>}
+      </div>
+      <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Nom</th><th>Machine</th><th>Type</th><th>Actions</th></tr></thead><tbody>
+        {organes.length === 0 ? <tr><td colSpan={4} className="data-table-empty">Aucun organe</td></tr> : organes.map((o) => {
+          const mach = Store.findById<Machine>('machines', o.machine_id);
+          return <tr key={o.id}><td><strong>{o.nom}</strong></td><td>{mach ? mach.nom + ' (' + mach.code + ')' : '-'}</td><td><span className="badge badge-blue">{o.type}</span></td>
+            <td><div style={{ display: 'flex', gap: 4 }}>{hasPermission('parametrage_edit') && <><button className="btn-icon" title="Modifier" onClick={() => setOrgModal(o.id)}>✏</button><button className="btn-icon" title="Supprimer" onClick={() => deleteOrgane(o.id)}>🗑</button></>}</div></td></tr>;
+        })}
+      </tbody></table></div>
+      {orgModal && <Modal isOpen={true} title={editOrg ? 'Modifier organe' : 'Nouvel organe'} onClose={() => setOrgModal(null)}>
+        <div className="form-group"><label className="form-label">Nom *</label><input className="form-input" id="org_nom" defaultValue={editOrg?.nom || ''} /></div>
+        <div className="form-group"><label className="form-label">Machine *</label><select className="form-select" id="org_mach" defaultValue={editOrg?.machine_id || ''}><option value="">--</option>{machines2.map((mm) => <option key={mm.id} value={mm.id}>{mm.nom}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Type</label><select className="form-select" id="org_type" defaultValue={editOrg?.type || ''}><option value="">--</option>{['Impression','Alimentation','Sechage','Encrage','Moulage','Puissance','Decoupe','Commande','Autre'].map((t) => <option key={t} value={t}>{t}</option>)}</select></div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}><button className="btn btn-primary" onClick={saveOrgane}>Confirmer</button><button className="btn btn-outline" onClick={() => setOrgModal(null)}>Annuler</button></div>
+      </Modal>}
     </>);
   }
 
@@ -107,7 +156,7 @@ export default function MachinesPage() {
     <div className="int-detail-card" style={{ maxWidth: 900 }}>
       <div className="form-row"><div className="form-group"><label className="form-label">Nom *</label><input className="form-input" id="mf_nom" defaultValue={m?.nom || ''} /></div><div className="form-group"><label className="form-label">Code</label><input className="form-input" id="mf_code" defaultValue={m?.code || ''} /></div></div>
       <div className="form-row"><div className="form-group"><label className="form-label">Pole</label><select className="form-select" id="mf_pole" defaultValue={m?.pole_id || ''}><option value="">--</option>{poles.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Atelier</label><select className="form-select" id="mf_atelier" defaultValue={m?.atelier_id || ''}><option value="">--</option>{ateliers.map((a) => <option key={a.id} value={a.id}>{a.nom}</option>)}</select></div></div>
-      <div className="form-row"><div className="form-group"><label className="form-label">Criticite</label><select className="form-select" id="mf_crit" defaultValue={m?.criticite || 'Standard'}><option value="Critique">Critique</option><option value="Important">Important</option><option value="Standard">Standard</option></select></div><div className="form-group"><label className="form-label">Etat</label><select className="form-select" id="mf_etat" defaultValue={m?.etat || 'En service'}><option value="En service">En service</option><option value="En panne">En panne</option></select></div></div>
+      <div className="form-row"><div className="form-group"><label className="form-label">Criticite</label><select className="form-select" id="mf_crit" defaultValue={m?.criticite || 'Standard'}><option value="Critique">Critique</option><option value="Important">Important</option><option value="Standard">Standard</option></select></div><div className="form-group"><label className="form-label">Etat</label><select className="form-select" id="mf_etat" defaultValue={m?.etat || 'En service'}><option value="En service">En service</option><option value="En panne">En panne</option><option value="Arret programme">Arret programme</option></select></div></div>
       <div className="form-row"><div className="form-group"><label className="form-label">Chef</label><select className="form-select" id="mf_chef" defaultValue={m?.chef_atelier_id || ''}><option value="">--</option>{chefs.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Dispo (%)</label><input className="form-input" type="number" id="mf_dispo" defaultValue={m?.disponibilite || 100} /></div></div>
       <div className="form-row-3"><div className="form-group"><label className="form-label">H prevues/mois</label><input className="form-input" type="number" id="mf_hpm" defaultValue={m?.heures_prevues_mois || ''} /></div><div className="form-group"><label className="form-label">H courantes</label><input className="form-input" type="number" id="mf_hc" defaultValue={m?.heures_courantes || ''} /></div><div className="form-group"><label className="form-label">Tours</label><input className="form-input" type="number" id="mf_tc" defaultValue={m?.tours_courants || ''} /></div></div>
       <div style={{ marginTop: 20, display: 'flex', gap: 10 }}><button className="btn btn-primary" onClick={save}>💾 {isNew ? 'Creer' : 'Enregistrer'}</button><button className="btn btn-outline" onClick={() => setView('grid')}>Annuler</button></div>
