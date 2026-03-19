@@ -15,6 +15,7 @@ export default function PreventifPage() {
   const [month, setMonth] = useState(new Date().getMonth());
   const [year, setYear] = useState(new Date().getFullYear());
   const [editId, setEditId] = useState<string | null>(null);
+  const [seuilType, setSeuilType] = useState<string>('Periode');
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
@@ -66,16 +67,26 @@ export default function PreventifPage() {
     const save = () => {
       const tache = gv('tp_tache'), machId = gv('tp_machine'), freq = gv('tp_freq');
       if (!tache || !machId || !freq) { toast('Champs requis', 'error'); return; }
-      Store.upsert('taches_preventives', { id: t?.id || Store.generateId('tp'), machine_id: machId, organe_id: gv('tp_organe') || null, piece_id: gv('tp_piece') || null, tache, frequence: freq, duree_std_min: parseInt(gv('tp_duree')) || 0, type_seuil: (gv('tp_seuil_type') || 'Periode') as any, seuil_valeur: parseInt(gv('tp_seuil_val')) || 0, alerte_avant_jours: parseInt(gv('tp_alerte')) || 3 } as TachePreventive);
+      Store.upsert('taches_preventives', { id: t?.id || Store.generateId('tp'), machine_id: machId, organe_id: gv('tp_organe') || null, piece_id: gv('tp_piece') || null, tache, frequence: freq, duree_std_min: parseInt(gv('tp_duree')) || 0, type_seuil: seuilType as any, seuil_valeur: parseInt(gv('tp_seuil_val')) || 0, alerte_avant_jours: parseInt(gv('tp_alerte')) || 3 } as TachePreventive);
       toast(t ? 'Modifiee' : 'Creee', 'success'); setViewMode('calendar');
     };
+    const freqByType: Record<string, { label: string; val: number }[]> = {
+      'Periode': [{ label: 'Quotidien', val: 1 }, { label: 'Hebdomadaire', val: 7 }, { label: 'Bi-mensuel', val: 15 }, { label: 'Mensuel', val: 30 }, { label: 'Trimestriel', val: 90 }, { label: 'Semestriel', val: 180 }, { label: 'Annuel', val: 365 }],
+      'Heures': [{ label: 'Toutes les 100h', val: 100 }, { label: 'Toutes les 250h', val: 250 }, { label: 'Toutes les 500h', val: 500 }, { label: 'Toutes les 1000h', val: 1000 }, { label: 'Toutes les 2000h', val: 2000 }, { label: 'Toutes les 5000h', val: 5000 }],
+      'Tours': [{ label: 'Tous les 100k tours', val: 100000 }, { label: 'Tous les 250k tours', val: 250000 }, { label: 'Tous les 500k tours', val: 500000 }, { label: 'Tous les 1M tours', val: 1000000 }],
+    };
+    const onSeuilTypeChange = (val: string) => { setSeuilType(val); };
+    const onFreqChange = (val: string) => { const opts = freqByType[seuilType] || []; const m = opts.find((o) => o.label === val); const elV = document.getElementById('tp_seuil_val') as HTMLInputElement; if (elV && m) elV.value = String(m.val); };
+    const todayISO = new Date().toISOString().slice(0, 10);
     return (<>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><button className="btn btn-outline btn-sm" onClick={() => setViewMode('calendar')}>← Retour</button><span style={{ fontSize: '1.2rem', fontWeight: 700 }}>{t ? 'Modifier tache' : 'Nouvelle tache'}</span></div>
       <div className="int-detail-card" style={{ maxWidth: 800 }}>
+        <div className="form-group"><label className="form-label">Date</label><input className="form-input" id="tp_date" type="date" value={todayISO} readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} /></div>
         <div className="form-group"><label className="form-label">Tache *</label><input className="form-input" id="tp_tache" defaultValue={t?.tache || ''} /></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">Machine *</label><select className="form-select" id="tp_machine" defaultValue={t?.machine_id || ''}><option value="">--</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Frequence *</label><select className="form-select" id="tp_freq" defaultValue={t?.frequence || ''}><option value="">--</option>{['Quotidien', 'Hebdomadaire', 'Bi-mensuel', 'Mensuel', 'Trimestriel'].map((f) => <option key={f} value={f}>{f}</option>)}</select></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Machine *</label><select className="form-select" id="tp_machine" defaultValue={t?.machine_id || ''}><option value="">--</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Type seuil *</label><select className="form-select" id="tp_seuil_type" value={seuilType} onChange={(e) => onSeuilTypeChange(e.target.value)}><option value="Periode">Periode</option><option value="Heures">Heures</option><option value="Tours">Tours</option></select></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Frequence *</label><select className="form-select" id="tp_freq" defaultValue={t?.frequence || ''} onChange={(e) => onFreqChange(e.target.value)}><option value="">--</option>{(freqByType[seuilType] || []).map((f) => <option key={f.label} value={f.label}>{f.label}</option>)}</select></div><div className="form-group"><label className="form-label">Valeur seuil</label><input className="form-input" type="number" id="tp_seuil_val" defaultValue={t?.seuil_valeur || ''} readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} /></div></div>
         <div className="form-row"><div className="form-group"><label className="form-label">Organe</label><select className="form-select" id="tp_organe" defaultValue={t?.organe_id || ''}><option value="">--</option>{organes.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Piece</label><select className="form-select" id="tp_piece" defaultValue={t?.piece_id || ''}><option value="">--</option>{pieces.map((p) => <option key={p.id} value={p.id}>{p.designation}</option>)}</select></div></div>
-        <div className="form-row-3"><div className="form-group"><label className="form-label">Type seuil</label><select className="form-select" id="tp_seuil_type" defaultValue={t?.type_seuil || 'Periode'}><option value="Periode">Periode</option><option value="Heures">Heures</option><option value="Tours">Tours</option></select></div><div className="form-group"><label className="form-label">Valeur seuil</label><input className="form-input" type="number" id="tp_seuil_val" defaultValue={t?.seuil_valeur || ''} /></div><div className="form-group"><label className="form-label">Duree (min)</label><input className="form-input" type="number" id="tp_duree" defaultValue={t?.duree_std_min || ''} /></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Duree (min)</label><input className="form-input" type="number" id="tp_duree" defaultValue={t?.duree_std_min || ''} /></div></div>
         <div className="form-group"><label className="form-label">Alerte avant (jours)</label><input className="form-input" type="number" id="tp_alerte" defaultValue={t?.alerte_avant_jours || 3} /></div>
         <div style={{ marginTop: 20, display: 'flex', gap: 10 }}><button className="btn btn-primary" onClick={save}>💾 Enregistrer</button><button className="btn btn-outline" onClick={() => setViewMode('calendar')}>Annuler</button></div>
       </div>
@@ -89,7 +100,7 @@ export default function PreventifPage() {
         <button className={'btn btn-sm ' + (viewMode === 'calendar' ? 'btn-primary' : 'btn-outline')} onClick={() => setViewMode('calendar')}>📅 Calendrier</button>
         <button className={'btn btn-sm ' + (viewMode === 'list' ? 'btn-primary' : 'btn-outline')} onClick={() => setViewMode('list')}>☰ Liste</button>
       </div>
-      <div className="int-toolbar-right">{hasPermission('interventions_create') && <button className="btn btn-primary btn-sm" onClick={() => { setEditId(null); setViewMode('form'); }}>➕ Tache</button>}</div>
+      <div className="int-toolbar-right">{hasPermission('interventions_create') && <button className="btn btn-primary btn-sm" onClick={() => { setEditId(null); setSeuilType('Periode'); setViewMode('form'); }}>➕ Tache</button>}</div>
     </div>
     <div className="int-stats-bar">
       <div className="int-stat"><span className="int-stat-val">{scheduled.length}</span><span className="int-stat-label">Planifiees</span></div>
