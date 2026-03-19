@@ -16,6 +16,7 @@ export default function PreventifPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [editId, setEditId] = useState<string | null>(null);
   const [seuilType, setSeuilType] = useState<string>('Periode');
+  const [selectedTask, setSelectedTask] = useState<{ taskId: string; date: string } | null>(null);
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
@@ -128,7 +129,7 @@ export default function PreventifPage() {
             const ds = year + '-' + pad(month + 1) + '-' + pad(day);
             const isToday = ds === todayS;
             const dayTasks = scheduled.filter((s) => s.date === ds);
-            cells.push(<div key={day} className={'prev-cal-day' + (isToday ? ' today' : '')}><div className="prev-cal-num">{day}</div>{dayTasks.slice(0, 3).map((dt, i) => <div key={i} className={'prev-cal-task ' + dt.status} title={dt.tache}>{dt.machCode} {dt.tache.substring(0, 18)}</div>)}{dayTasks.length > 3 && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>+{dayTasks.length - 3}</div>}</div>);
+            cells.push(<div key={day} className={'prev-cal-day' + (isToday ? ' today' : '')}><div className="prev-cal-num">{day}</div>{dayTasks.slice(0, 3).map((dt, i) => <div key={i} className={'prev-cal-task ' + dt.status} title={dt.tache} style={{ cursor: 'pointer' }} onClick={() => setSelectedTask({ taskId: dt.taskId, date: dt.date })}>{dt.machCode} {dt.tache.substring(0, 18)}</div>)}{dayTasks.length > 3 && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>+{dayTasks.length - 3}</div>}</div>);
           }
           const rem = (7 - ((startDow + daysInMonth) % 7)) % 7;
           for (let nx = 1; nx <= rem; nx++) cells.push(<div key={'n' + nx} className="prev-cal-day other-month"><div className="prev-cal-num">{nx}</div></div>);
@@ -142,13 +143,53 @@ export default function PreventifPage() {
       <div className="data-table-header"><div className="data-table-title">Taches du mois ({scheduled.length})</div></div>
       <div style={{ maxHeight: viewMode === 'list' ? 'none' : 400, overflowY: 'auto' }}>
         {scheduled.sort((a, b) => a.date < b.date ? -1 : 1).map((sc, i) => (
-          <div key={i} className="prev-task-list-item">
-            <div className={'prev-task-check' + (sc.status === 'done' ? ' checked' : '')} onClick={() => toggleTask(sc.taskId, sc.date)}>{sc.status === 'done' ? '✓' : ''}</div>
+          <div key={i} className="prev-task-list-item" style={{ cursor: 'pointer' }} onClick={() => setSelectedTask({ taskId: sc.taskId, date: sc.date })}>
+            <div className={'prev-task-check' + (sc.status === 'done' ? ' checked' : '')} onClick={(e) => { e.stopPropagation(); toggleTask(sc.taskId, sc.date); }}>{sc.status === 'done' ? '✓' : ''}</div>
             <div className="prev-task-info"><div className="prev-task-name">{sc.tache}</div><div className="prev-task-meta">{sc.machName} | {sc.freq} | {sc.date} | {sc.duree} min</div></div>
             {sc.status === 'done' ? <span className="badge badge-green">Fait</span> : sc.status === 'overdue' ? <span className="badge badge-red">Retard</span> : sc.status === 'due' ? <span className="badge badge-orange">A faire</span> : <span className="badge badge-blue">A venir</span>}
           </div>
         ))}
       </div>
     </div>
+
+    {selectedTask && (() => {
+      const tk = Store.findById<TachePreventive>('taches_preventives', selectedTask.taskId);
+      if (!tk) return null;
+      const mach = Store.findById<Machine>('machines', tk.machine_id);
+      const org = tk.organe_id ? Store.findById<Organe>('organes', tk.organe_id) : null;
+      const pc = tk.piece_id ? Store.findById<Piece>('pieces', tk.piece_id) : null;
+      const compKey = tk.id + '_' + selectedTask.date;
+      const isDone = completions[compKey] || false;
+      return (<div className="modal-overlay" onClick={() => setSelectedTask(null)}>
+        <div className="modal-content" style={{ maxWidth: 550, padding: 0 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>Detail tache preventive</span>
+            <button className="btn btn-outline btn-sm" onClick={() => setSelectedTask(null)}>✕</button>
+          </div>
+          <div style={{ padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontWeight: 700, fontSize: '1rem' }}>{tk.tache}</span>
+              {isDone ? <span className="badge badge-green">Fait</span> : selectedTask.date < todayS ? <span className="badge badge-red">Retard</span> : selectedTask.date === todayS ? <span className="badge badge-orange">A faire</span> : <span className="badge badge-blue">A venir</span>}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', fontSize: '0.85rem' }}>
+              <div><span style={{ color: 'var(--text-muted)' }}>Date planifiee</span><br /><strong>{selectedTask.date}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Frequence</span><br /><strong>{tk.frequence}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Machine</span><br /><strong>{mach?.nom || '-'}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Code machine</span><br /><strong>{mach?.code || '-'}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Organe</span><br /><strong>{org?.nom || '-'}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Piece</span><br /><strong>{pc?.designation || '-'}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Type seuil</span><br /><strong>{tk.type_seuil}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Valeur seuil</span><br /><strong>{tk.seuil_valeur}</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Duree standard</span><br /><strong>{tk.duree_std_min} min</strong></div>
+              <div><span style={{ color: 'var(--text-muted)' }}>Alerte avant</span><br /><strong>{tk.alerte_avant_jours} jours</strong></div>
+            </div>
+            <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
+              <button className={'btn btn-sm ' + (isDone ? 'btn-outline' : 'btn-primary')} onClick={() => { toggleTask(selectedTask.taskId, selectedTask.date); setSelectedTask(null); }}>{isDone ? 'Marquer non fait' : '✓ Marquer fait'}</button>
+              <button className="btn btn-outline btn-sm" onClick={() => { setEditId(selectedTask.taskId); setSeuilType(tk.type_seuil || 'Periode'); setViewMode('form'); setSelectedTask(null); }}>✏ Modifier</button>
+            </div>
+          </div>
+        </div>
+      </div>);
+    })()}
   </>);
 }
