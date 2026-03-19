@@ -957,7 +957,8 @@ button {
     display: flex;
 }
 
-.modal {
+.modal,
+.modal-content {
     background: var(--bg-modal);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
