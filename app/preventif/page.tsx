@@ -6,7 +6,7 @@ import { useApp } from '@/contexts/AppContext';
 import { StatusBadge } from '@/components/ui/Badge';
 import Store from '@/lib/store';
 import { getMachineName, filterByPole } from '@/lib/utils';
-import type { TachePreventive, Machine, Organe, Piece, Intervention } from '@/lib/types';
+import type { TachePreventive, Machine, Organe, Piece, Intervention, PrevCompletion } from '@/lib/types';
 
 export default function PreventifPage() {
   const { hasPermission } = useAuth();
@@ -33,12 +33,9 @@ export default function PreventifPage() {
   const todayStr = new Date().getFullYear() + '-' + ('0' + (new Date().getMonth() + 1)).slice(-2) + '-' + ('0' + new Date().getDate()).slice(-2);
   const pad = (n: number) => n < 10 ? '0' + n : '' + n;
   const todayS = year + '-' + pad(new Date().getMonth() + 1) + '-' + pad(new Date().getDate());
-  const completionsRaw = Store.get<Record<string, any>>('prev_completions') || {};
-  const completions: Record<string, { done: boolean; comment: string; date: string }> = {};
-  Object.entries(completionsRaw).forEach(([k, v]) => {
-    if (typeof v === 'boolean') completions[k] = { done: v, comment: '', date: '' };
-    else if (v && typeof v === 'object') completions[k] = v as { done: boolean; comment: string; date: string };
-  });
+  const allCompletions = Store.getAll<PrevCompletion>('prev_completions');
+  const completions: Record<string, PrevCompletion> = {};
+  allCompletions.forEach((c) => { completions[c.task_id + '_' + c.date_prev] = c; });
 
   const scheduled: { taskId: string; date: string; tache: string; machCode: string; machName: string; freq: string; duree: number; status: string }[] = [];
   tasks.forEach((task, ti) => {
@@ -62,16 +59,14 @@ export default function PreventifPage() {
   const tauxReal = scheduled.length > 0 ? Math.round((done / scheduled.length) * 100) : 0;
 
   const validateTask = (taskId: string, dateStr: string, comment: string) => {
-    const comps = Store.get<Record<string, any>>('prev_completions') || {};
-    const key = taskId + '_' + dateStr;
-    comps[key] = { done: true, comment, date: new Date().toISOString().slice(0, 10) };
-    Store.set('prev_completions', comps); refresh();
+    const id = taskId + '_' + dateStr;
+    Store.upsert<PrevCompletion>('prev_completions', { id, task_id: taskId, date_prev: dateStr, comment, done: true, completed_at: new Date().toISOString().slice(0, 10) });
+    refresh();
   };
   const unvalidateTask = (taskId: string, dateStr: string) => {
-    const comps = Store.get<Record<string, any>>('prev_completions') || {};
-    const key = taskId + '_' + dateStr;
-    delete comps[key];
-    Store.set('prev_completions', comps); refresh();
+    const id = taskId + '_' + dateStr;
+    Store.deleteById('prev_completions', id);
+    refresh();
   };
 
   if (viewMode === 'form') {
@@ -171,7 +166,7 @@ export default function PreventifPage() {
       const org = tk.organe_id ? Store.findById<Organe>('organes', tk.organe_id) : null;
       const pc = tk.piece_id ? Store.findById<Piece>('pieces', tk.piece_id) : null;
       const compKey = tk.id + '_' + selectedTask.date;
-      const compData = completions[compKey];
+      const compData = completions[compKey] || null;
       const isDone = compData?.done || false;
       return (<div className="modal-overlay" onClick={() => setSelectedTask(null)}>
         <div className="modal-content" style={{ maxWidth: 550, padding: 0 }} onClick={(e) => e.stopPropagation()}>
@@ -196,11 +191,11 @@ export default function PreventifPage() {
               <div><span style={{ color: 'var(--text-muted)' }}>Duree standard</span><br /><strong>{tk.duree_std_min} min</strong></div>
               <div><span style={{ color: 'var(--text-muted)' }}>Alerte avant</span><br /><strong>{tk.alerte_avant_jours} jours</strong></div>
             </div>
-            {isDone && compData?.comment && (
+            {isDone && compData && compData.comment && (
               <div style={{ marginTop: 16, padding: 12, background: 'var(--bg-input)', borderRadius: 8, fontSize: '0.85rem' }}>
                 <div style={{ color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>Commentaire de validation</div>
                 <div>{compData.comment}</div>
-                {compData.date && <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 4 }}>Valide le {compData.date}</div>}
+                {compData.completed_at && <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 4 }}>Valide le {compData.completed_at}</div>}
               </div>
             )}
             {!isDone && (

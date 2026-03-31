@@ -9,7 +9,7 @@ const COLLECTIONS = [
   'users', 'poles', 'ateliers', 'techniciens', 'operateurs', 'chefs_atelier',
   'machines', 'organes', 'causes', 'pieces', 'interventions', 'actions',
   'stock_movements', 'demandes_achat', 'sous_traitances', 'taches_preventives',
-  'signalements',
+  'prev_completions', 'signalements',
 ];
 
 interface DataContextType {

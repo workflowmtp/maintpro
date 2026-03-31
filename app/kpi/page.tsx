@@ -19,7 +19,7 @@ export default function KPIPage() {
   const pieces = Store.getAll<Piece>('pieces');
   const actions = Store.getAll<Action>('actions');
   const tprevs = Store.getAll<TachePreventive>('taches_preventives');
-  const completions = Store.get<Record<string, boolean>>('prev_completions') || {};
+  const allCompletions = Store.getAll<{ id: string; task_id: string; date_prev: string; done: boolean }>('prev_completions');
 
   // KPI Calculations
   const nbCur = interventions.filter((i) => i.type === 'Curatif').length;
@@ -36,8 +36,8 @@ export default function KPIPage() {
   interventions.forEach((i) => i.pieces_utilisees?.forEach((pu) => { const pc = Store.findById<Piece>('pieces', pu.piece_id); if (pc) coutTotal += pc.prix_unitaire * pu.quantite; }));
 
   // Preventif completion
-  const totalPrevTasks = Object.keys(completions).length;
-  const donePrevTasks = Object.values(completions).filter(Boolean).length;
+  const totalPrevTasks = allCompletions.length;
+  const donePrevTasks = allCompletions.filter((c) => c.done).length;
   const tauxRealPrev = tprevs.length > 0 ? Math.round((donePrevTasks / Math.max(tprevs.length, 1)) * 100) : 0;
 
   // Tech performance

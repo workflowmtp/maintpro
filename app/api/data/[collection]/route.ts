@@ -19,6 +19,7 @@ const MODEL_MAP: Record<string, string> = {
   demandes_achat: 'demandeAchat',
   sous_traitances: 'sousTraitance',
   taches_preventives: 'tachePreventive',
+  prev_completions: 'prevCompletion',
   signalements: 'signalement',
   company_info: 'companyInfo',
   role_permissions: 'rolePermission',

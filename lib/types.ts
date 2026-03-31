@@ -257,6 +257,16 @@ export interface TachePreventive {
   alerte_avant_jours: number;
 }
 
+// --- COMPLETIONS PREVENTIVES ---
+export interface PrevCompletion {
+  id: string;
+  task_id: string;
+  date_prev: string;
+  comment: string;
+  done: boolean;
+  completed_at: string;
+}
+
 // --- SIGNALEMENTS ---
 export interface SignalementQualification {
   chef_id: string;

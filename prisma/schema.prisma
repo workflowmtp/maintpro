@@ -245,6 +245,19 @@ model TachePreventive {
   @@map("taches_preventives")
 }
 
+// --- COMPLETIONS PREVENTIVES ---
+model PrevCompletion {
+  id        String @id
+  task_id   String
+  date_prev String
+  comment   String
+  done      Boolean @default(true)
+  completed_at String
+
+  @@unique([task_id, date_prev])
+  @@map("prev_completions")
+}
+
 // --- SIGNALEMENTS ---
 model Signalement {
   id                 String  @id
