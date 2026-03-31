@@ -17,6 +17,7 @@ export default function PreventifPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [seuilType, setSeuilType] = useState<string>('Periode');
   const [selectedTask, setSelectedTask] = useState<{ taskId: string; date: string } | null>(null);
+  const [validationComment, setValidationComment] = useState('');
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
@@ -32,7 +33,12 @@ export default function PreventifPage() {
   const todayStr = new Date().getFullYear() + '-' + ('0' + (new Date().getMonth() + 1)).slice(-2) + '-' + ('0' + new Date().getDate()).slice(-2);
   const pad = (n: number) => n < 10 ? '0' + n : '' + n;
   const todayS = year + '-' + pad(new Date().getMonth() + 1) + '-' + pad(new Date().getDate());
-  const completions = Store.get<Record<string, boolean>>('prev_completions') || {};
+  const completionsRaw = Store.get<Record<string, any>>('prev_completions') || {};
+  const completions: Record<string, { done: boolean; comment: string; date: string }> = {};
+  Object.entries(completionsRaw).forEach(([k, v]) => {
+    if (typeof v === 'boolean') completions[k] = { done: v, comment: '', date: '' };
+    else if (v && typeof v === 'object') completions[k] = v as { done: boolean; comment: string; date: string };
+  });
 
   const scheduled: { taskId: string; date: string; tache: string; machCode: string; machName: string; freq: string; duree: number; status: string }[] = [];
   tasks.forEach((task, ti) => {
@@ -42,7 +48,7 @@ export default function PreventifPage() {
     for (let day = startDay; day <= daysInMonth; day += interval) {
       const dateStr = year + '-' + pad(month + 1) + '-' + pad(day);
       const compKey = task.id + '_' + dateStr;
-      const isDone = completions[compKey] || false;
+      const isDone = completions[compKey]?.done || false;
       let status = 'upcoming';
       if (isDone) status = 'done';
       else if (dateStr < todayS) status = 'overdue';
@@ -55,10 +61,16 @@ export default function PreventifPage() {
   const overdue = scheduled.filter((s) => s.status === 'overdue').length;
   const tauxReal = scheduled.length > 0 ? Math.round((done / scheduled.length) * 100) : 0;
 
-  const toggleTask = (taskId: string, dateStr: string) => {
-    const comps = Store.get<Record<string, boolean>>('prev_completions') || {};
+  const validateTask = (taskId: string, dateStr: string, comment: string) => {
+    const comps = Store.get<Record<string, any>>('prev_completions') || {};
     const key = taskId + '_' + dateStr;
-    if (comps[key]) delete comps[key]; else comps[key] = true;
+    comps[key] = { done: true, comment, date: new Date().toISOString().slice(0, 10) };
+    Store.set('prev_completions', comps); refresh();
+  };
+  const unvalidateTask = (taskId: string, dateStr: string) => {
+    const comps = Store.get<Record<string, any>>('prev_completions') || {};
+    const key = taskId + '_' + dateStr;
+    delete comps[key];
     Store.set('prev_completions', comps); refresh();
   };
 
@@ -144,7 +156,7 @@ export default function PreventifPage() {
       <div style={{ maxHeight: viewMode === 'list' ? 'none' : 400, overflowY: 'auto' }}>
         {scheduled.sort((a, b) => a.date < b.date ? -1 : 1).map((sc, i) => (
           <div key={i} className="prev-task-list-item" style={{ cursor: 'pointer' }} onClick={() => setSelectedTask({ taskId: sc.taskId, date: sc.date })}>
-            <div className={'prev-task-check' + (sc.status === 'done' ? ' checked' : '')} onClick={(e) => { e.stopPropagation(); toggleTask(sc.taskId, sc.date); }}>{sc.status === 'done' ? '✓' : ''}</div>
+            <div className={'prev-task-check' + (sc.status === 'done' ? ' checked' : '')} onClick={(e) => { e.stopPropagation(); setSelectedTask({ taskId: sc.taskId, date: sc.date }); setValidationComment(''); }}>{sc.status === 'done' ? '✓' : ''}</div>
             <div className="prev-task-info"><div className="prev-task-name">{sc.tache}</div><div className="prev-task-meta">{sc.machName} | {sc.freq} | {sc.date} | {sc.duree} min</div></div>
             {sc.status === 'done' ? <span className="badge badge-green">Fait</span> : sc.status === 'overdue' ? <span className="badge badge-red">Retard</span> : sc.status === 'due' ? <span className="badge badge-orange">A faire</span> : <span className="badge badge-blue">A venir</span>}
           </div>
@@ -159,7 +171,8 @@ export default function PreventifPage() {
       const org = tk.organe_id ? Store.findById<Organe>('organes', tk.organe_id) : null;
       const pc = tk.piece_id ? Store.findById<Piece>('pieces', tk.piece_id) : null;
       const compKey = tk.id + '_' + selectedTask.date;
-      const isDone = completions[compKey] || false;
+      const compData = completions[compKey];
+      const isDone = compData?.done || false;
       return (<div className="modal-overlay" onClick={() => setSelectedTask(null)}>
         <div className="modal-content" style={{ maxWidth: 550, padding: 0 }} onClick={(e) => e.stopPropagation()}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -183,9 +196,33 @@ export default function PreventifPage() {
               <div><span style={{ color: 'var(--text-muted)' }}>Duree standard</span><br /><strong>{tk.duree_std_min} min</strong></div>
               <div><span style={{ color: 'var(--text-muted)' }}>Alerte avant</span><br /><strong>{tk.alerte_avant_jours} jours</strong></div>
             </div>
-            <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
-              <button className={'btn btn-sm ' + (isDone ? 'btn-outline' : 'btn-primary')} onClick={() => { toggleTask(selectedTask.taskId, selectedTask.date); setSelectedTask(null); }}>{isDone ? 'Marquer non fait' : '✓ Marquer fait'}</button>
-              <button className="btn btn-outline btn-sm" onClick={() => { setEditId(selectedTask.taskId); setSeuilType(tk.type_seuil || 'Periode'); setViewMode('form'); setSelectedTask(null); }}>✏ Modifier</button>
+            {isDone && compData?.comment && (
+              <div style={{ marginTop: 16, padding: 12, background: 'var(--bg-input)', borderRadius: 8, fontSize: '0.85rem' }}>
+                <div style={{ color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>Commentaire de validation</div>
+                <div>{compData.comment}</div>
+                {compData.date && <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 4 }}>Valide le {compData.date}</div>}
+              </div>
+            )}
+            {!isDone && (
+              <div style={{ marginTop: 16 }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: 6 }}>Commentaire de validation *</label>
+                <textarea
+                  className="form-input"
+                  rows={3}
+                  placeholder="Decrivez les travaux realises, observations, etc."
+                  value={validationComment}
+                  onChange={(e) => setValidationComment(e.target.value)}
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </div>
+            )}
+            <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+              {isDone ? (
+                <button className="btn btn-outline btn-sm" onClick={() => { unvalidateTask(selectedTask.taskId, selectedTask.date); setSelectedTask(null); }}>Annuler la validation</button>
+              ) : (
+                <button className="btn btn-primary btn-sm" onClick={() => { if (!validationComment.trim()) { toast('Un commentaire est requis pour valider', 'error'); return; } validateTask(selectedTask.taskId, selectedTask.date, validationComment.trim()); setValidationComment(''); setSelectedTask(null); }}>Valider la tache</button>
+              )}
+              <button className="btn btn-outline btn-sm" onClick={() => { setEditId(selectedTask.taskId); setSeuilType(tk.type_seuil || 'Periode'); setViewMode('form'); setSelectedTask(null); }}>Modifier</button>
             </div>
           </div>
         </div>
