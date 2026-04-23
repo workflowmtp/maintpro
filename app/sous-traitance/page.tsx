@@ -69,9 +69,9 @@ export default function SousTraitancePage() {
         <div className="int-detail-card"><div className="int-detail-card-title">💰 Budget</div><DR l="Prestataire" v={st.prestataire} /><DR l="Contact" v={st.contact || '-'} /><DR l="Montant" v={formatMoney(st.montant)} /><DR l="BC" v={st.bon_commande || '-'} /><DR l="Debut" v={formatDate(st.date_debut_prevue)} /><DR l="Fin" v={formatDate(st.date_fin_prevue)} /></div>
       </div>
       {st.observations && <div className="int-detail-card" style={{ marginTop: 16 }}><div className="int-detail-card-title">📝 Observations</div><div style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>{st.observations}</div></div>}
-      {hasPermission('st_edit') && <div className="int-detail-card" style={{ marginTop: 16 }}><div className="int-detail-card-title">⚙ Actions</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {(transitions[st.statut] || []).map(([ns, label]) => <button key={ns} className={ns === 'Annulee' ? 'btn btn-danger btn-sm' : 'btn btn-success btn-sm'} onClick={() => changeSt(ns)}>{label}</button>)}
-        <button className="btn btn-outline btn-sm" onClick={() => setView('form')}>✏ Modifier</button>
+      {(hasPermission('st_edit') || hasPermission('st_workflow')) && <div className="int-detail-card" style={{ marginTop: 16 }}><div className="int-detail-card-title">⚙ Actions</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {hasPermission('st_workflow') && (transitions[st.statut] || []).map(([ns, label]) => <button key={ns} className={ns === 'Annulee' ? 'btn btn-danger btn-sm' : 'btn btn-success btn-sm'} onClick={() => changeSt(ns)}>{label}</button>)}
+        {hasPermission('st_edit') && <button className="btn btn-outline btn-sm" onClick={() => setView('form')}>✏ Modifier</button>}
       </div></div>}
     </>);
   }

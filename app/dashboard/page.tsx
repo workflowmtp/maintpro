@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { StatusBadge } from '@/components/ui/Badge';
 import Store from '@/lib/store';
-import { formatFullDate, formatMoney, formatDate, getPoleName, getMachineName, getTechName, filterByPole } from '@/lib/utils';
+import { formatFullDate, formatMoney, formatDate, getPoleName, getMachineName, getTechName, filterByPole, exportAllCSV } from '@/lib/utils';
 import type { Intervention, Action, Piece, DemandeAchat, SousTraitance, Machine, Signalement } from '@/lib/types';
 
 export default function DashboardPage() {
@@ -46,13 +46,14 @@ export default function DashboardPage() {
           <div className="dash-date">{formatFullDate(now)}</div>
         </div>
         <div className="dash-actions">
-          {hasPermission('interventions_create') && (
-            <>
-              <button className="dash-action-btn primary" onClick={() => router.push('/signalements')}>🚨 Signaler panne</button>
-              <button className="dash-action-btn" onClick={() => router.push('/interventions')}>🔧 Interventions</button>
-            </>
+          {hasPermission('signalements_create') && (
+            <button className="dash-action-btn primary" onClick={() => router.push('/signalements')}>🚨 Signaler panne</button>
+          )}
+          {hasPermission('interventions_view') && (
+            <button className="dash-action-btn" onClick={() => router.push('/interventions')}>🔧 Interventions</button>
           )}
           {hasPermission('da_create') && <button className="dash-action-btn" onClick={() => router.push('/da')}>📄 Nouvelle DA</button>}
+          {hasPermission('export') && <button className="dash-action-btn" onClick={exportAllCSV}>📊 Export global CSV</button>}
           {hasPermission('bot') && <button className="dash-action-btn" onClick={() => router.push('/maintbot')}>🤖 MaintBot</button>}
         </div>
       </div>

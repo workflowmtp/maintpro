@@ -6,7 +6,7 @@ import { useApp } from '@/contexts/AppContext';
 import { StatusBadge } from '@/components/ui/Badge';
 import Store from '@/lib/store';
 import { getMachineName, filterByPole } from '@/lib/utils';
-import type { TachePreventive, Machine, Organe, Piece, Intervention, PrevCompletion } from '@/lib/types';
+import type { TachePreventive, Machine, Organe, Piece, Pole, Intervention, PrevCompletion } from '@/lib/types';
 
 export default function PreventifPage() {
   const { hasPermission } = useAuth();
@@ -18,6 +18,9 @@ export default function PreventifPage() {
   const [seuilType, setSeuilType] = useState<string>('Periode');
   const [selectedTask, setSelectedTask] = useState<{ taskId: string; date: string } | null>(null);
   const [validationComment, setValidationComment] = useState('');
+  const [formPoleId, setFormPoleId] = useState<string>('');
+  const [formMachineId, setFormMachineId] = useState<string>('');
+  const [formOrganeId, setFormOrganeId] = useState<string>('');
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
@@ -71,7 +74,14 @@ export default function PreventifPage() {
 
   if (viewMode === 'form') {
     const t = editId ? Store.findById<TachePreventive>('taches_preventives', editId) : null;
-    const machines = Store.getAll<Machine>('machines'); const organes = Store.getAll<Organe>('organes'); const pieces = Store.getAll<Piece>('pieces');
+    const allMachines = Store.getAll<Machine>('machines'); const allOrganes = Store.getAll<Organe>('organes'); const pieces = Store.getAll<Piece>('pieces');
+    const poles = Store.getAll<Pole>('poles');
+    // Initialize form state from existing task on first render
+    const initMachine = t ? Store.findById<Machine>('machines', t.machine_id) : null;
+    const initPoleId = formPoleId || initMachine?.pole_id || '';
+    const initMachineId = formMachineId || t?.machine_id || '';
+    const machines = initPoleId ? allMachines.filter((m) => m.pole_id === initPoleId) : allMachines;
+    const organes = initMachineId ? allOrganes.filter((o) => o.machine_id === initMachineId) : allOrganes;
     const save = () => {
       const tache = gv('tp_tache'), machId = gv('tp_machine'), freq = gv('tp_freq');
       if (!tache || !machId || !freq) { toast('Champs requis', 'error'); return; }
@@ -91,12 +101,14 @@ export default function PreventifPage() {
       <div className="int-detail-card" style={{ maxWidth: 800 }}>
         <div className="form-group"><label className="form-label">Date</label><input className="form-input" id="tp_date" type="date" value={todayISO} readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} /></div>
         <div className="form-group"><label className="form-label">Tache *</label><input className="form-input" id="tp_tache" defaultValue={t?.tache || ''} /></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">Machine *</label><select className="form-select" id="tp_machine" defaultValue={t?.machine_id || ''}><option value="">--</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Type seuil *</label><select className="form-select" id="tp_seuil_type" value={seuilType} onChange={(e) => onSeuilTypeChange(e.target.value)}><option value="Periode">Periode</option><option value="Heures">Heures</option><option value="Tours">Tours</option></select></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Pole</label><select className="form-select" id="tp_pole" value={formPoleId} onChange={(e) => { setFormPoleId(e.target.value); setFormMachineId(''); setFormOrganeId(''); }}><option value="">Tous</option>{poles.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Type seuil *</label><select className="form-select" id="tp_seuil_type" value={seuilType} onChange={(e) => onSeuilTypeChange(e.target.value)}><option value="Periode">Periode</option><option value="Heures">Heures</option><option value="Tours">Tours</option></select></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Machine *</label><select className="form-select" id="tp_machine" value={formMachineId} onChange={(e) => { setFormMachineId(e.target.value); setFormOrganeId(''); }}><option value="">--</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}</select></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Organe</label><select className="form-select" id="tp_organe" value={formOrganeId} onChange={(e) => setFormOrganeId(e.target.value)}><option value="">--</option>{organes.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}</select></div></div>
         <div className="form-row"><div className="form-group"><label className="form-label">Frequence *</label><select className="form-select" id="tp_freq" defaultValue={t?.frequence || ''} onChange={(e) => onFreqChange(e.target.value)}><option value="">--</option>{(freqByType[seuilType] || []).map((f) => <option key={f.label} value={f.label}>{f.label}</option>)}</select></div><div className="form-group"><label className="form-label">Valeur seuil</label><input className="form-input" type="number" id="tp_seuil_val" defaultValue={t?.seuil_valeur || ''} readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} /></div></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">Organe</label><select className="form-select" id="tp_organe" defaultValue={t?.organe_id || ''}><option value="">--</option>{organes.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Piece</label><select className="form-select" id="tp_piece" defaultValue={t?.piece_id || ''}><option value="">--</option>{pieces.map((p) => <option key={p.id} value={p.id}>{p.designation}</option>)}</select></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">Piece</label><select className="form-select" id="tp_piece" defaultValue={t?.piece_id || ''}><option value="">--</option>{pieces.map((p) => <option key={p.id} value={p.id}>{p.designation}</option>)}</select></div></div>
         <div className="form-row"><div className="form-group"><label className="form-label">Duree (min)</label><input className="form-input" type="number" id="tp_duree" defaultValue={t?.duree_std_min || ''} /></div></div>
         <div className="form-group"><label className="form-label">Alerte avant (jours)</label><input className="form-input" type="number" id="tp_alerte" defaultValue={t?.alerte_avant_jours || 3} /></div>
-        <div style={{ marginTop: 20, display: 'flex', gap: 10 }}><button className="btn btn-primary" onClick={save}>💾 Enregistrer</button><button className="btn btn-outline" onClick={() => setViewMode('calendar')}>Annuler</button></div>
+        <div style={{ marginTop: 20, display: 'flex', gap: 10 }}><button className="btn btn-primary" onClick={save}> Enregistrer</button><button className="btn btn-outline" onClick={() => setViewMode('calendar')}>Annuler</button></div>
       </div>
     </>);
   }
@@ -108,7 +120,7 @@ export default function PreventifPage() {
         <button className={'btn btn-sm ' + (viewMode === 'calendar' ? 'btn-primary' : 'btn-outline')} onClick={() => setViewMode('calendar')}>📅 Calendrier</button>
         <button className={'btn btn-sm ' + (viewMode === 'list' ? 'btn-primary' : 'btn-outline')} onClick={() => setViewMode('list')}>☰ Liste</button>
       </div>
-      <div className="int-toolbar-right">{hasPermission('interventions_create') && <button className="btn btn-primary btn-sm" onClick={() => { setEditId(null); setSeuilType('Periode'); setViewMode('form'); }}>➕ Tache</button>}</div>
+      <div className="int-toolbar-right">{hasPermission('preventif_create') && <button className="btn btn-primary btn-sm" onClick={() => { setEditId(null); setSeuilType('Periode'); setFormPoleId(''); setFormMachineId(''); setFormOrganeId(''); setViewMode('form'); }}>➕ Tache</button>}</div>
     </div>
     <div className="int-stats-bar">
       <div className="int-stat"><span className="int-stat-val">{scheduled.length}</span><span className="int-stat-label">Planifiees</span></div>
@@ -215,9 +227,10 @@ export default function PreventifPage() {
               {isDone ? (
                 <button className="btn btn-outline btn-sm" onClick={() => { unvalidateTask(selectedTask.taskId, selectedTask.date); setSelectedTask(null); }}>Annuler la validation</button>
               ) : (
-                <button className="btn btn-primary btn-sm" onClick={() => { if (!validationComment.trim()) { toast('Un commentaire est requis pour valider', 'error'); return; } validateTask(selectedTask.taskId, selectedTask.date, validationComment.trim()); setValidationComment(''); setSelectedTask(null); }}>Valider la tache</button>
+                hasPermission('preventif_complete') ?
+                <button className="btn btn-primary btn-sm" onClick={() => { if (!validationComment.trim()) { toast('Un commentaire est requis pour valider', 'error'); return; } validateTask(selectedTask.taskId, selectedTask.date, validationComment.trim()); setValidationComment(''); setSelectedTask(null); }}>Valider la tache</button> : null
               )}
-              <button className="btn btn-outline btn-sm" onClick={() => { setEditId(selectedTask.taskId); setSeuilType(tk.type_seuil || 'Periode'); setViewMode('form'); setSelectedTask(null); }}>Modifier</button>
+              {hasPermission('preventif_edit') && <button className="btn btn-outline btn-sm" onClick={() => { const mach = Store.findById<Machine>('machines', tk.machine_id); setFormPoleId(mach?.pole_id || ''); setFormMachineId(tk.machine_id); setFormOrganeId(tk.organe_id || ''); setEditId(selectedTask.taskId); setSeuilType(tk.type_seuil || 'Periode'); setViewMode('form'); setSelectedTask(null); }}>Modifier</button>}
             </div>
           </div>
         </div>

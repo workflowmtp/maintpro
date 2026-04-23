@@ -90,13 +90,13 @@ export default function ParametragePage() {
 
     return (<>
       <TabBar tab={tab} setTab={setTab} />
-      <div className="int-toolbar"><div /><button className="btn btn-primary btn-sm" onClick={() => { setEditId(null); setShowModal(true); }}>➕ Utilisateur</button></div>
+      <div className="int-toolbar"><div />{hasPermission('users_manage') && <button className="btn btn-primary btn-sm" onClick={() => { setEditId(null); setShowModal(true); }}>➕ Utilisateur</button>}</div>
       <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Nom</th><th>Email</th><th>Login</th><th>Role</th><th>Pole</th><th>Actif</th><th>Actions</th></tr></thead><tbody>
         {users.map((u) => (
           <tr key={u.id}><td><div className="param-user-card" style={{ padding: 0, border: 'none' }}><div className="param-user-avatar">{u.nom.split(' ').map((w) => w[0]).join('').substring(0, 2)}</div><div className="param-user-info"><div className="param-user-name">{u.nom}</div></div></div></td>
           <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{u.email}</td><td style={{ fontFamily: 'var(--font-mono)' }}>{u.login}</td><td><span className="badge badge-blue">{getRoleName(u.role)}</span></td><td>{u.pole_id ? getPoleName(u.pole_id) : 'Tous'}</td>
           <td>{u.actif ? <span className="badge badge-green">Oui</span> : <span className="badge badge-red">Non</span>}</td>
-          <td><div style={{ display: 'flex', gap: 4 }}><button className="btn-icon" onClick={() => { setEditId(u.id); setShowModal(true); }}>✏</button><button className="btn-icon" onClick={() => del(u.id)}>🗑</button></div></td></tr>
+          <td><div style={{ display: 'flex', gap: 4 }}>{hasPermission('users_manage') && <><button className="btn-icon" onClick={() => { setEditId(u.id); setShowModal(true); }}>✏</button><button className="btn-icon" onClick={() => del(u.id)}>🗑</button></>}</div></td></tr>
         ))}
       </tbody></table></div>
       {showModal && (() => {

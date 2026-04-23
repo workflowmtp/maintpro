@@ -18,12 +18,12 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { section: 'PRINCIPAL' },
-  { id: 'dashboard', label: 'Dashboard', icon: '■', perm: null, href: '/dashboard' },
+  { id: 'dashboard', label: 'Dashboard', icon: '■', perm: 'dashboard_view', href: '/dashboard' },
   { section: 'MAINTENANCE' },
-  { id: 'signalements', label: 'Signalements', icon: '🚨', perm: 'interventions_create', badgeKey: 'signalements_pending', href: '/signalements' },
+  { id: 'signalements', label: 'Signalements', icon: '🚨', perm: 'signalements_view', badgeKey: 'signalements_pending', href: '/signalements' },
   { id: 'interventions', label: 'Interventions', icon: '🔧', perm: 'interventions_view', badgeKey: 'interventions_pending', href: '/interventions' },
   { id: 'preventif', label: 'Preventif', icon: '📅', perm: 'planning_view', href: '/preventif' },
-  { id: 'machines', label: 'Machines', icon: '⚙', perm: 'interventions_view', href: '/machines' },
+  { id: 'machines', label: 'Machines', icon: '⚙', perm: 'machines_view', href: '/machines' },
   { section: 'LOGISTIQUE' },
   { id: 'stock', label: 'Stock', icon: '📦', perm: 'stock_view', badgeKey: 'stock_alerts', href: '/stock' },
   { id: 'da', label: 'Demandes Achat', icon: '📄', perm: 'da_view', badgeKey: 'da_pending', href: '/da' },

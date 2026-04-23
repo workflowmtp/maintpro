@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/ui/Badge';
 import { Pagination, paginate } from '@/components/ui/Pagination';
 import Store from '@/lib/store';
 import { formatDateTime, getPoleName, getMachineName, getTechName, getUsersByRole } from '@/lib/utils';
-import type { Signalement, Machine, Intervention, User } from '@/lib/types';
+import type { Signalement, Machine, Intervention, Pole, User } from '@/lib/types';
 
 type View = 'list' | 'detail' | 'form';
 
@@ -21,6 +21,7 @@ export default function SignalementsPage() {
   const [search, setSearch] = useState('');
   const [expandedSig, setExpandedSig] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [formPoleId, setFormPoleId] = useState<string>('');
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
@@ -50,7 +51,7 @@ export default function SignalementsPage() {
             <button className={'btn btn-sm ' + (displayMode === 'card' ? 'btn-primary' : 'btn-outline')} onClick={() => setDisplayMode('card')} title="Vue cartes">▦ Cartes</button>
             <button className={'btn btn-sm ' + (displayMode === 'accordion' ? 'btn-primary' : 'btn-outline')} onClick={() => setDisplayMode('accordion')} title="Vue accordeon">☰ Accordeon</button>
           </div>
-          <button className="btn btn-primary" onClick={() => setView('form')}>🚨 Signaler une panne</button>
+          {hasPermission('signalements_create') && <button className="btn btn-primary" onClick={() => { setCurrentId(null); setFormPoleId(''); setView('form'); }}>🚨 Signaler une panne</button>}
         </div>
       </div>
       <div className="sig-flow-bar">
@@ -140,6 +141,10 @@ export default function SignalementsPage() {
         <button className="btn btn-outline btn-sm" onClick={() => setView('list')}>← Retour</button>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.2rem', fontWeight: 700 }}>{s.ref}</span>
         <StatusBadge statut={s.statut} /> <StatusBadge statut={s.urgence_percue} />
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {hasPermission('signalements_create') && <button className="btn btn-outline btn-sm" onClick={() => { setFormPoleId(s.pole_id); setCurrentId(s.id); setView('form'); }}>✏ Modifier</button>}
+          {hasPermission('signalements_create') && <button className="btn btn-danger btn-sm" onClick={() => { if (!confirm('Supprimer ce signalement ?')) return; Store.deleteById('signalements', s.id); toast('Signalement supprime', 'warning'); setView('list'); }}>🗑 Supprimer</button>}
+        </div>
       </div>
       <div className="sig-flow-bar" style={{ marginBottom: 24 }}>
         {flowSteps.map((fs, fi) => <div key={fs} className={'sig-flow-step' + (fi < ci ? ' done' : '') + (fi === ci ? ' active' : '')}>{fi < ci ? '✓ ' : ''}{fs}</div>)}
@@ -181,34 +186,48 @@ export default function SignalementsPage() {
   }
 
   // FORM
+  const s = currentId ? Store.findById<Signalement>('signalements', currentId) : null;
+  const isNew = !s;
   const userPole = getUserPoleId();
-  let machines = Store.getAll<Machine>('machines');
-  let operateurs = getUsersByRole('operateur');
-  if (userPole && !hasPermission('pole_all')) { machines = machines.filter((m) => m.pole_id === userPole); operateurs = operateurs.filter((o) => o.pole_id === userPole); }
+  const allPoles = Store.getAll<Pole>('poles');
+  const allMachines = Store.getAll<Machine>('machines');
+  const allOperateurs = getUsersByRole('operateur');
+  // Cascading: pole -> machines, pole -> operateurs
+  const effectivePoleId = formPoleId || s?.pole_id || userPole || '';
+  let machines = effectivePoleId ? allMachines.filter((m) => m.pole_id === effectivePoleId) : allMachines;
+  let operateurs = effectivePoleId ? allOperateurs.filter((o) => o.pole_id === effectivePoleId) : allOperateurs;
+  if (!effectivePoleId && userPole && !hasPermission('pole_all')) { machines = machines.filter((m) => m.pole_id === userPole); operateurs = operateurs.filter((o) => o.pole_id === userPole); }
 
   const save = () => {
     const [machineId, opId, dysfonct, arret, urgence] = ['sf_machine','sf_operateur','sf_dysfonct','sf_arret','sf_urgence'].map(gv);
     if (!machineId || !opId || !dysfonct || !arret || !urgence) { toast('Champs obligatoires manquants', 'error'); return; }
     const machine = Store.findById<Machine>('machines', machineId);
-    const allS = Store.getAll<Signalement>('signalements');
-    Store.upsert('signalements', { id: Store.generateId('sig'), ref: 'SIG-' + new Date().getFullYear() + '-' + ('000' + (allS.length + 1)).slice(-3), date_signalement: new Date().toISOString(), operateur_id: opId, pole_id: machine?.pole_id || '', atelier_id: machine?.atelier_id || '', machine_id: machineId, dysfonctionnement: dysfonct, symptome: gv('sf_symptome'), machine_arretee: arret as any, urgence_percue: urgence as any, statut: 'Nouveau', intervention_id: null, qualification: null } as Signalement);
-    toast('Signalement envoye', 'success'); setView('list');
+    if (isNew) {
+      const allS = Store.getAll<Signalement>('signalements');
+      Store.upsert('signalements', { id: Store.generateId('sig'), ref: 'SIG-' + new Date().getFullYear() + '-' + ('000' + (allS.length + 1)).slice(-3), date_signalement: new Date().toISOString(), operateur_id: opId, pole_id: machine?.pole_id || '', atelier_id: machine?.atelier_id || '', machine_id: machineId, dysfonctionnement: dysfonct, symptome: gv('sf_symptome'), machine_arretee: arret as any, urgence_percue: urgence as any, statut: 'Nouveau', intervention_id: null, qualification: null } as Signalement);
+      toast('Signalement envoye', 'success');
+    } else {
+      Store.upsert('signalements', { ...s, operateur_id: opId, pole_id: machine?.pole_id || s?.pole_id || '', atelier_id: machine?.atelier_id || s?.atelier_id || '', machine_id: machineId, dysfonctionnement: dysfonct, symptome: gv('sf_symptome'), machine_arretee: arret as any, urgence_percue: urgence as any } as Signalement);
+      toast('Signalement modifie', 'success');
+    }
+    setView('list');
   };
 
   return (<>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><button className="btn btn-outline btn-sm" onClick={() => setView('list')}>← Retour</button><span style={{ fontSize: '1.2rem', fontWeight: 700 }}>🚨 Signaler une panne</span></div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><button className="btn btn-outline btn-sm" onClick={() => setView('list')}>← Retour</button><span style={{ fontSize: '1.2rem', fontWeight: 700 }}>{isNew ? '🚨 Signaler une panne' : 'Modifier ' + s?.ref}</span></div>
     <div className="int-detail-card" style={{ maxWidth: 750 }}>
+      <div className="form-group"><label className="form-label">Pole</label><select className="form-select" id="sf_pole" value={effectivePoleId} onChange={(e) => setFormPoleId(e.target.value)}><option value="">Tous</option>{allPoles.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}</select></div>
       <div className="form-row">
-        <div className="form-group"><label className="form-label">Machine *</label><select className="form-select" id="sf_machine"><option value="">--</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}</select></div>
-        <div className="form-group"><label className="form-label">Operateur *</label><select className="form-select" id="sf_operateur"><option value="">--</option>{operateurs.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Machine *</label><select className="form-select" id="sf_machine" defaultValue={s?.machine_id || ''}><option value="">--</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Operateur *</label><select className="form-select" id="sf_operateur" defaultValue={s?.operateur_id || ''}><option value="">--</option>{operateurs.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}</select></div>
       </div>
-      <div className="form-group"><label className="form-label">Dysfonctionnement *</label><textarea className="form-textarea" id="sf_dysfonct" /></div>
-      <div className="form-group"><label className="form-label">Symptome</label><input className="form-input" id="sf_symptome" /></div>
+      <div className="form-group"><label className="form-label">Dysfonctionnement *</label><textarea className="form-textarea" id="sf_dysfonct" defaultValue={s?.dysfonctionnement || ''} /></div>
+      <div className="form-group"><label className="form-label">Symptome</label><input className="form-input" id="sf_symptome" defaultValue={s?.symptome || ''} /></div>
       <div className="form-row">
-        <div className="form-group"><label className="form-label">Machine arretee ? *</label><select className="form-select" id="sf_arret"><option value="">--</option><option value="non">Non</option><option value="oui">Oui</option></select></div>
-        <div className="form-group"><label className="form-label">Urgence *</label><select className="form-select" id="sf_urgence"><option value="">--</option>{['Faible','Moyenne','Haute','Critique'].map((u) => <option key={u} value={u}>{u}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Machine arretee ? *</label><select className="form-select" id="sf_arret" defaultValue={s?.machine_arretee || ''}><option value="">--</option><option value="non">Non</option><option value="oui">Oui</option></select></div>
+        <div className="form-group"><label className="form-label">Urgence *</label><select className="form-select" id="sf_urgence" defaultValue={s?.urgence_percue || ''}><option value="">--</option>{['Faible','Moyenne','Haute','Critique'].map((u) => <option key={u} value={u}>{u}</option>)}</select></div>
       </div>
-      <div style={{ marginTop: 20, display: 'flex', gap: 10 }}><button className="btn btn-primary" onClick={save}>🚨 Envoyer</button><button className="btn btn-outline" onClick={() => setView('list')}>Annuler</button></div>
+      <div style={{ marginTop: 20, display: 'flex', gap: 10 }}><button className="btn btn-primary" onClick={save}>{isNew ? '🚨 Envoyer' : '💾 Enregistrer'}</button><button className="btn btn-outline" onClick={() => setView('list')}>Annuler</button></div>
     </div>
   </>);
 }

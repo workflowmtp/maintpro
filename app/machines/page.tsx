@@ -20,6 +20,8 @@ export default function MachinesPage() {
   const [filterCrit, setFilterCrit] = useState('all');
   const [, setTick] = useState(0);
   const [orgModal, setOrgModal] = useState<string | null>(null);
+  const [formPoleId, setFormPoleId] = useState<string>('');
+  const [formAtelierId, setFormAtelierId] = useState<string>('');
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
 
@@ -41,7 +43,7 @@ export default function MachinesPage() {
           <button className="btn btn-outline btn-sm" onClick={() => setView('organes')}>⚙ Organes</button>
         </div>
         <div className="int-toolbar-right">
-          {hasPermission('parametrage_edit') && <button className="btn btn-primary btn-sm" onClick={() => { setCurrentId(null); setView('form'); }}>➕ Machine</button>}
+          {hasPermission('machines_edit') && <button className="btn btn-primary btn-sm" onClick={() => { setCurrentId(null); setFormPoleId(''); setFormAtelierId(''); setView('form'); }}>➕ Machine</button>}
           <button className="btn btn-outline btn-sm" onClick={exportCSV}>📥 CSV</button>
         </div>
       </div>
@@ -94,6 +96,10 @@ export default function MachinesPage() {
         <button className="btn btn-outline btn-sm" onClick={() => setView('grid')}>← Retour</button>
         <div><div style={{ fontSize: '1.3rem', fontWeight: 700 }}>{m.nom}</div><div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{m.code}</div></div>
         {m.etat === 'En panne' ? <span className="badge badge-red">En panne</span> : <span className="badge badge-green">En service</span>} <CriticiteBadge criticite={m.criticite} />
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {hasPermission('machines_edit') && <button className="btn btn-outline btn-sm" onClick={() => { setFormPoleId(m.pole_id); setFormAtelierId(m.atelier_id); setCurrentId(m.id); setView('form'); }}>✏ Modifier</button>}
+          {hasPermission('machines_edit') && <button className="btn btn-danger btn-sm" onClick={() => { if (!confirm('Supprimer cette machine ?')) return; Store.deleteById('machines', m.id); toast('Machine supprimee', 'warning'); setView('grid'); }}>🗑 Supprimer</button>}
+        </div>
       </div>
       <div className="int-detail-grid">
         <div className="int-detail-card"><div className="int-detail-card-title">⚙ Fiche</div><DR l="Pole" v={getPoleName(m.pole_id)} /><DR l="Atelier" v={getAtelierName(m.atelier_id)} /><DR l="Chef" v={chef?.nom || '-'} /><DR l="H prevues/mois" v={m.heures_prevues_mois + ' h'} /><DR l="H courantes" v={m.heures_courantes.toLocaleString() + ' h'} />{m.tours_courants > 0 && <DR l="Tours" v={m.tours_courants.toLocaleString()} />}</div>
@@ -124,13 +130,13 @@ export default function MachinesPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button className="btn btn-outline btn-sm" onClick={() => setView('grid')}>← Retour machines</button>
         <span style={{ fontSize: '1.2rem', fontWeight: 700 }}>Gestion des organes ({organes.length})</span>
-        {hasPermission('parametrage_edit') && <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setOrgModal('new')}>➕ Nouvel organe</button>}
+        {hasPermission('machines_edit') && <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setOrgModal('new')}>➕ Nouvel organe</button>}
       </div>
       <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Nom</th><th>Machine</th><th>Type</th><th>Actions</th></tr></thead><tbody>
         {organes.length === 0 ? <tr><td colSpan={4} className="data-table-empty">Aucun organe</td></tr> : organes.map((o) => {
           const mach = Store.findById<Machine>('machines', o.machine_id);
           return <tr key={o.id}><td><strong>{o.nom}</strong></td><td>{mach ? mach.nom + ' (' + mach.code + ')' : '-'}</td><td><span className="badge badge-blue">{o.type}</span></td>
-            <td><div style={{ display: 'flex', gap: 4 }}>{hasPermission('parametrage_edit') && <><button className="btn-icon" title="Modifier" onClick={() => setOrgModal(o.id)}>✏</button><button className="btn-icon" title="Supprimer" onClick={() => deleteOrgane(o.id)}>🗑</button></>}</div></td></tr>;
+            <td><div style={{ display: 'flex', gap: 4 }}>{hasPermission('machines_edit') && <><button className="btn-icon" title="Modifier" onClick={() => setOrgModal(o.id)}>✏</button><button className="btn-icon" title="Supprimer" onClick={() => deleteOrgane(o.id)}>🗑</button></>}</div></td></tr>;
         })}
       </tbody></table></div>
       {orgModal && <Modal isOpen={true} title={editOrg ? 'Modifier organe' : 'Nouvel organe'} onClose={() => setOrgModal(null)}>
@@ -145,7 +151,12 @@ export default function MachinesPage() {
   // FORM
   const m = currentId ? Store.findById<Machine>('machines', currentId) : null;
   const isNew = !m;
-  const poles = Store.getAll<Pole>('poles'); const ateliers = Store.getAll<Atelier>('ateliers'); const chefs = getUsersByRole('chef_atelier');
+  const allPoles = Store.getAll<Pole>('poles'); const allAteliers = Store.getAll<Atelier>('ateliers'); const allChefs = getUsersByRole('chef_atelier');
+  // Cascading: pole -> ateliers, pole+atelier -> chefs
+  const effectivePoleId = formPoleId || m?.pole_id || '';
+  const effectiveAtelierId = formAtelierId || m?.atelier_id || '';
+  const ateliers = effectivePoleId ? allAteliers.filter((a) => a.pole_id === effectivePoleId) : allAteliers;
+  const chefs = effectivePoleId ? allChefs.filter((c) => c.pole_id === effectivePoleId) : allChefs;
   const save = () => {
     const nom = gv('mf_nom'); if (!nom) { toast('Nom requis', 'error'); return; }
     Store.upsert('machines', { id: m?.id || Store.generateId('mach'), nom, code: gv('mf_code'), pole_id: gv('mf_pole'), atelier_id: gv('mf_atelier'), criticite: (gv('mf_crit') || 'Standard') as any, etat: (gv('mf_etat') || 'En service') as any, chef_atelier_id: gv('mf_chef'), disponibilite: parseInt(gv('mf_dispo')) || 100, heures_prevues_mois: parseInt(gv('mf_hpm')) || 0, heures_courantes: parseInt(gv('mf_hc')) || 0, tours_courants: parseInt(gv('mf_tc')) || 0, techniciens_affectes: m?.techniciens_affectes || [] } as Machine);
@@ -155,7 +166,7 @@ export default function MachinesPage() {
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><button className="btn btn-outline btn-sm" onClick={() => setView('grid')}>← Retour</button><span style={{ fontSize: '1.2rem', fontWeight: 700 }}>{isNew ? 'Nouvelle machine' : 'Modifier ' + m?.nom}</span></div>
     <div className="int-detail-card" style={{ maxWidth: 900 }}>
       <div className="form-row"><div className="form-group"><label className="form-label">Nom *</label><input className="form-input" id="mf_nom" defaultValue={m?.nom || ''} /></div><div className="form-group"><label className="form-label">Code</label><input className="form-input" id="mf_code" defaultValue={m?.code || ''} /></div></div>
-      <div className="form-row"><div className="form-group"><label className="form-label">Pole</label><select className="form-select" id="mf_pole" defaultValue={m?.pole_id || ''}><option value="">--</option>{poles.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Atelier</label><select className="form-select" id="mf_atelier" defaultValue={m?.atelier_id || ''}><option value="">--</option>{ateliers.map((a) => <option key={a.id} value={a.id}>{a.nom}</option>)}</select></div></div>
+      <div className="form-row"><div className="form-group"><label className="form-label">Pole</label><select className="form-select" id="mf_pole" value={effectivePoleId} onChange={(e) => { setFormPoleId(e.target.value); setFormAtelierId(''); }}><option value="">--</option>{allPoles.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Atelier</label><select className="form-select" id="mf_atelier" value={effectiveAtelierId} onChange={(e) => setFormAtelierId(e.target.value)}><option value="">--</option>{ateliers.map((a) => <option key={a.id} value={a.id}>{a.nom}</option>)}</select></div></div>
       <div className="form-row"><div className="form-group"><label className="form-label">Criticite</label><select className="form-select" id="mf_crit" defaultValue={m?.criticite || 'Standard'}><option value="Critique">Critique</option><option value="Important">Important</option><option value="Standard">Standard</option></select></div><div className="form-group"><label className="form-label">Etat</label><select className="form-select" id="mf_etat" defaultValue={m?.etat || 'En service'}><option value="En service">En service</option><option value="En panne">En panne</option><option value="Arret programme">Arret programme</option></select></div></div>
       <div className="form-row"><div className="form-group"><label className="form-label">Chef</label><select className="form-select" id="mf_chef" defaultValue={m?.chef_atelier_id || ''}><option value="">--</option>{chefs.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></div><div className="form-group"><label className="form-label">Dispo (%)</label><input className="form-input" type="number" id="mf_dispo" defaultValue={m?.disponibilite || 100} /></div></div>
       <div className="form-row-3"><div className="form-group"><label className="form-label">H prevues/mois</label><input className="form-input" type="number" id="mf_hpm" defaultValue={m?.heures_prevues_mois || ''} /></div><div className="form-group"><label className="form-label">H courantes</label><input className="form-input" type="number" id="mf_hc" defaultValue={m?.heures_courantes || ''} /></div><div className="form-group"><label className="form-label">Tours</label><input className="form-input" type="number" id="mf_tc" defaultValue={m?.tours_courants || ''} /></div></div>

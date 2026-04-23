@@ -135,3 +135,106 @@ export function filterByPole<T extends { pole_id?: string }>(items: T[], poleId:
   if (!poleId || poleId === 'all') return items;
   return items.filter((item) => item.pole_id === poleId);
 }
+
+// --- Global CSV Export ---
+const EXPORT_COLLECTIONS: { key: string; label: string; resolve: Record<string, string> }[] = [
+  { key: 'interventions', label: 'Interventions', resolve: { machine_id: 'machines', pole_id: 'poles', atelier_id: 'ateliers', technicien_principal_id: 'techniciens', cause_id: 'causes' } },
+  { key: 'signalements', label: 'Signalements', resolve: { machine_id: 'machines', pole_id: 'poles', atelier_id: 'ateliers', operateur_id: 'operateurs' } },
+  { key: 'taches_preventives', label: 'Taches_Preventives', resolve: { machine_id: 'machines', organe_id: 'organes', piece_id: 'pieces' } },
+  { key: 'demandes_achat', label: 'Demandes_Achat', resolve: { machine_id: 'machines', pole_id: 'poles', piece_id: 'pieces' } },
+  { key: 'sous_traitances', label: 'Sous_Traitances', resolve: { machine_id: 'machines', pole_id: 'poles' } },
+  { key: 'actions', label: 'Actions', resolve: { intervention_id: 'interventions' } },
+  { key: 'machines', label: 'Machines', resolve: { pole_id: 'poles', atelier_id: 'ateliers' } },
+  { key: 'organes', label: 'Organes', resolve: { machine_id: 'machines' } },
+  { key: 'pieces', label: 'Pieces', resolve: {} },
+  { key: 'stock_movements', label: 'Mouvements_Stock', resolve: { piece_id: 'pieces' } },
+  { key: 'causes', label: 'Causes', resolve: {} },
+  { key: 'poles', label: 'Poles', resolve: {} },
+  { key: 'ateliers', label: 'Ateliers', resolve: { pole_id: 'poles' } },
+  { key: 'techniciens', label: 'Techniciens', resolve: { pole_id: 'poles' } },
+  { key: 'operateurs', label: 'Operateurs', resolve: { pole_id: 'poles', atelier_id: 'ateliers' } },
+  { key: 'chefs_atelier', label: 'Chefs_Atelier', resolve: { pole_id: 'poles', atelier_id: 'ateliers' } },
+  { key: 'users', label: 'Utilisateurs', resolve: { pole_id: 'poles' } },
+  { key: 'prev_completions', label: 'Validations_Preventif', resolve: {} },
+];
+
+function resolveName(collection: string, id: string | null | undefined): string {
+  if (!id) return '';
+  const item = Store.findById<{ nom?: string; designation?: string; ref?: string } & { id: string }>(collection, id);
+  return item?.nom || item?.designation || item?.ref || id;
+}
+
+function flattenObject(obj: Record<string, any>, resolveMap: Record<string, string>): Record<string, string> {
+  const row: Record<string, string> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val === null || val === undefined) {
+      row[key] = '';
+    } else if (typeof val === 'object' && !Array.isArray(val)) {
+      // Flatten nested objects (e.g. workflow, qualification)
+      for (const [subKey, subVal] of Object.entries(val)) {
+        if (typeof subVal === 'object' && subVal !== null) {
+          row[key + '_' + subKey] = JSON.stringify(subVal);
+        } else {
+          row[key + '_' + subKey] = String(subVal ?? '');
+        }
+      }
+    } else if (Array.isArray(val)) {
+      row[key] = val.map((v: any) => (typeof v === 'object' ? JSON.stringify(v) : String(v))).join('; ');
+    } else {
+      // Resolve foreign keys to names
+      if (resolveMap[key] && typeof val === 'string') {
+        row[key] = resolveName(resolveMap[key], val) || val;
+        row[key + '_id'] = val;
+      } else {
+        row[key] = String(val);
+      }
+    }
+  }
+  return row;
+}
+
+function collectionToCSV(key: string, resolveMap: Record<string, string>): string {
+  const items = Store.getAll<Record<string, any>>(key);
+  if (items.length === 0) return '';
+  const rows = items.map((item) => flattenObject(item, resolveMap));
+  // Collect all column headers
+  const colSet = new Set<string>();
+  rows.forEach((r) => Object.keys(r).forEach((k) => colSet.add(k)));
+  const cols = Array.from(colSet).sort();
+  const header = cols.join(';');
+  const lines = rows.map((r) => cols.map((c) => {
+    const v = r[c] || '';
+    return v.includes(';') || v.includes('"') || v.includes('\n') ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }).join(';'));
+  return header + '\n' + lines.join('\n');
+}
+
+export function exportAllCSV(): void {
+  const parts: string[] = [];
+  for (const col of EXPORT_COLLECTIONS) {
+    const csv = collectionToCSV(col.key, col.resolve);
+    if (csv) {
+      parts.push('=== ' + col.label + ' ===\n' + csv);
+    }
+  }
+  const content = parts.join('\n\n');
+  const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'maintpro_export_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+export function exportCollectionCSV(key: string, label: string, resolveMap?: Record<string, string>): void {
+  const csv = collectionToCSV(key, resolveMap || {});
+  if (!csv) return;
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = label.toLowerCase() + '_export_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}

@@ -90,7 +90,7 @@ export default function InterventionsPage() {
               <td style={{ fontFamily: 'var(--font-mono)' }}>{it.duree_minutes || 0} min</td>
               <td><div style={{ display: 'flex', gap: 4 }}>
                 <button className="btn-icon" title="Voir" onClick={() => { setCurrentId(it.id); setView('detail'); }}>👁</button>
-                {it.type === 'Curatif' && <button className="btn-icon" title="Workflow" onClick={() => { setCurrentId(it.id); const wfi = Store.findById<Intervention>('interventions', it.id); setStepIdx(wfi?.workflow?.current_step || 0); setView('workflow'); }}>⚙</button>}
+                {it.type === 'Curatif' && hasPermission('interventions_workflow') && <button className="btn-icon" title="Workflow" onClick={() => { setCurrentId(it.id); const wfi = Store.findById<Intervention>('interventions', it.id); setStepIdx(wfi?.workflow?.current_step || 0); setView('workflow'); }}>⚙</button>}
                 {hasPermission('interventions_edit') && <button className="btn-icon" title="Modifier" onClick={() => { setCurrentId(it.id); setView('form'); }}>✏</button>}
                 {hasPermission('interventions_create') && <button className="btn-icon" title="Dupliquer" onClick={() => duplicateInt(it.id)}>📋</button>}
                 {hasPermission('interventions_delete') && <button className="btn-icon" title="Supprimer" onClick={() => deleteInt(it.id)}>🗑</button>}
@@ -122,7 +122,7 @@ export default function InterventionsPage() {
         {it.type === 'Curatif' ? <span className="badge badge-orange">Curatif</span> : <span className="badge badge-green">Preventif</span>}
         {it.panne_repetitive && <span className="badge badge-red">🔄 Repetitive</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          {it.type === 'Curatif' && <button className="btn btn-primary btn-sm" onClick={() => { const wfi = Store.findById<Intervention>('interventions', it.id); setStepIdx(wfi?.workflow?.current_step || 0); setView('workflow'); }}>⚙ Workflow</button>}
+          {it.type === 'Curatif' && hasPermission('interventions_workflow') && <button className="btn btn-primary btn-sm" onClick={() => { const wfi = Store.findById<Intervention>('interventions', it.id); setStepIdx(wfi?.workflow?.current_step || 0); setView('workflow'); }}>⚙ Workflow</button>}
           {hasPermission('interventions_edit') && <button className="btn btn-outline btn-sm" onClick={() => setView('form')}>✏ Modifier</button>}
         </div>
       </div>

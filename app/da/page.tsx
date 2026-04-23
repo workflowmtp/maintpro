@@ -106,10 +106,12 @@ export default function DAPage() {
       {diagHtml}
       {(hasPermission('da_workflow') || hasPermission('da_edit')) && <div className="int-detail-card" style={{ marginTop: 16 }}><div className="int-detail-card-title">⚙ Actions</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {da.statut === 'Brouillon' && <button className="btn btn-primary btn-sm" onClick={() => changeStatut('Soumise')}>➤ Soumettre</button>}
-          {da.statut === 'Soumise' && <><button className="btn btn-success btn-sm" onClick={() => changeStatut('Validee')}>✓ Valider</button><button className="btn btn-danger btn-sm" onClick={() => changeStatut('Refusee')}>✗ Refuser</button></>}
-          {da.statut === 'Validee' && <button className="btn btn-primary btn-sm" onClick={() => changeStatut('Commandee')}>📦 Commandee</button>}
-          {da.statut === 'Commandee' && <button className="btn btn-success btn-sm" onClick={() => changeStatut('Receptionnee')}>✓ Receptionnee</button>}
+          {hasPermission('da_workflow') && <>
+            {da.statut === 'Brouillon' && <button className="btn btn-primary btn-sm" onClick={() => changeStatut('Soumise')}>➤ Soumettre</button>}
+            {da.statut === 'Soumise' && <><button className="btn btn-success btn-sm" onClick={() => changeStatut('Validee')}>✓ Valider</button><button className="btn btn-danger btn-sm" onClick={() => changeStatut('Refusee')}>✗ Refuser</button></>}
+            {da.statut === 'Validee' && <button className="btn btn-primary btn-sm" onClick={() => changeStatut('Commandee')}>📦 Commandee</button>}
+            {da.statut === 'Commandee' && <button className="btn btn-success btn-sm" onClick={() => changeStatut('Receptionnee')}>✓ Receptionnee</button>}
+          </>}
           {hasPermission('da_edit') && <button className="btn btn-outline btn-sm" onClick={() => setView('form')}>✏ Modifier</button>}
         </div>
       </div>}
