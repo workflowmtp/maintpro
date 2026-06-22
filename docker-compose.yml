@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: always
+    # Augmente la limite de connexions (defaut: 100) pour absorber
+    # l'app MaintPro + n8n + pgAdmin sans "too many clients".
+    command: postgres -c max_connections=200
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: Admin@1234
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: eukingeoffrey@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: Admin@1234
+    ports:
+      - "10000:80"
+    depends_on:
+      - postgres
