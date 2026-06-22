@@ -43,14 +43,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         COLLECTIONS.map(async (col) => {
           try {
             const res = await fetch('/api/data/' + col);
-            if (!res.ok) return [col, []] as [string, any[]];
+            if (!res.ok) return [col, [], false] as [string, any[], boolean];
             const items = await res.json();
-            return [col, items] as [string, any[]];
+            return [col, items, true] as [string, any[], boolean];
           } catch {
-            return [col, []] as [string, any[]];
+            return [col, [], false] as [string, any[], boolean];
           }
         })
       );
+      // If any collection failed to load, the database is unreachable —
+      // do NOT silently fall back to demo data (it would mask the real error).
+      const hadFetchError = results.some(([, , ok]) => !ok);
       results.forEach(([col, items]) => {
         _setCache(col, items);
       });
@@ -77,7 +80,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {}
 
-      // Fallback: if DB is empty, load demo data into client-side Store
+      if (hadFetchError) {
+        // Connection / server error — surface it instead of showing demo data.
+        setError('Connexion a la base de donnees impossible. Verifiez les identifiants (.env) et que le serveur PostgreSQL est accessible.');
+        return;
+      }
+
+      // Fallback: if DB is genuinely empty, load demo data into client-side Store
       const cache = _getCache();
       const hasMachines = cache['machines'] && cache['machines'].length > 0;
       if (!hasMachines) {
@@ -109,6 +118,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           <div style={{ fontSize: '2rem', marginBottom: 12 }}>⚙</div>
           <div>Chargement des donnees...</div>
           {error && <div style={{ color: '#f05555', marginTop: 8 }}>{error}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !loaded && !isPublicPage) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-main, #0f1117)', color: 'var(--text-primary, #e2e8f0)' }}>
+        <div style={{ textAlign: 'center', maxWidth: 480, padding: 24 }}>
+          <div style={{ fontSize: '2rem', marginBottom: 12 }}>⚠</div>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Base de donnees inaccessible</div>
+          <div style={{ color: '#f05555', marginBottom: 20 }}>{error}</div>
+          <button className="btn btn-primary" onClick={() => refreshAll()}>Reessayer</button>
         </div>
       </div>
     );
