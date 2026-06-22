@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { StatusBadge } from '@/components/ui/Badge';
@@ -39,6 +39,8 @@ export default function ParametragePage() {
   const [selectedRole, setSelectedRole] = useState<RoleId | null>(null);
   const [rolePerms, setRolePerms] = useState<Record<string, string[]>>({});
   const [dirtyPerms, setDirtyPerms] = useState(false);
+  const [importStatus, setImportStatus] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
 
@@ -323,8 +325,47 @@ export default function ParametragePage() {
   if (tab === 'systeme') {
     const exportData = () => {
       const data: Record<string, any> = {};
-      ['users','poles','ateliers','techniciens','operateurs','chefs_atelier','machines','organes','causes','pieces','interventions','actions','stock_movements','demandes_achat','sous_traitances','taches_preventives','signalements','company_info'].forEach((k) => { data[k] = Store.get(k); });
+      ['users','poles','ateliers','techniciens','operateurs','chefs_atelier','machines','organes','causes','pieces','interventions','actions','stock_movements','demandes_achat','sous_traitances','taches_preventives','signalements','company_info','role_permissions'].forEach((k) => { data[k] = Store.get(k); });
       setExportJson(JSON.stringify(data, null, 2));
+    };
+
+    const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setImportStatus('Lecture du fichier...');
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        let total = 0;
+        const collections = ['users','poles','ateliers','techniciens','operateurs','chefs_atelier','machines','organes','causes','pieces','interventions','actions','stock_movements','demandes_achat','sous_traitances','taches_preventives','signalements'];
+        for (const col of collections) {
+          const items = data[col];
+          if (Array.isArray(items)) {
+            for (const item of items) {
+              if (item && typeof item === 'object' && item.id) {
+                Store.upsert(col, item);
+                total++;
+              }
+            }
+          }
+        }
+        if (data.company_info && typeof data.company_info === 'object') {
+          Store.set('company_info', data.company_info);
+          total++;
+        }
+        if (data.role_permissions && typeof data.role_permissions === 'object') {
+          setCustomRolePermissions(data.role_permissions);
+          total++;
+        }
+        setImportStatus(`Import termine : ${total} element(s) traite(s).`);
+        toast('Import JSON termine avec succes', 'success');
+        await refreshAll();
+        setTimeout(() => window.location.reload(), 800);
+      } catch (err: any) {
+        setImportStatus('Erreur : ' + (err.message || 'Fichier invalide'));
+        toast('Erreur lors de l\'import JSON', 'error');
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const resetAll = async () => {
@@ -354,7 +395,10 @@ export default function ParametragePage() {
         <div className="int-detail-card"><div className="int-detail-card-title">⚠ Actions</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button className="btn btn-primary btn-sm" onClick={exportData}>📤 Exporter (JSON)</button>
+            <button className="btn btn-primary btn-sm" onClick={() => fileInputRef.current?.click()}>📥 Importer (JSON)</button>
+            <input ref={fileInputRef} type="file" accept=".json" hidden onChange={handleImportFile} />
             <button className="btn btn-danger btn-sm" onClick={resetAll}>🔄 Reinitialiser donnees demo</button>
+            {importStatus && <div style={{ fontSize: '0.75rem', color: importStatus.startsWith('Erreur') ? 'var(--color-error)' : 'var(--color-success)' }}>{importStatus}</div>}
           </div>
         </div>
       </div>
