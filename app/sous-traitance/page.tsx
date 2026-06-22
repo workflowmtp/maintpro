@@ -83,7 +83,7 @@ export default function SousTraitancePage() {
   const save = () => {
     const presta = gv('st_presta'), objet = gv('st_objet');
     if (!presta || !objet) { toast('Prestataire et objet requis', 'error'); return; }
-    const obj: SousTraitance = { id: st?.id || Store.generateId('st'), ref: st?.ref || ('ST-' + new Date().getFullYear() + '-' + ('000' + (Store.getAll<SousTraitance>('sous_traitances').length + 1)).slice(-3)), date: st?.date || new Date().toISOString(), pole_id: gv('st_pole'), prestataire: presta, contact: gv('st_contact'), objet, machine_id: gv('st_mach'), intervention_id: gv('st_int'), montant: parseInt(gv('st_montant')) || 0, date_debut_prevue: gv('st_deb'), date_fin_prevue: gv('st_fin'), bon_commande: gv('st_bc'), statut: st?.statut || 'Demandee' as any, observations: gv('st_obs') };
+    const obj: SousTraitance = { id: st?.id || Store.generateId('st'), ref: st?.ref || Store.nextRef('ST', Store.getAll<SousTraitance>('sous_traitances').map((x) => x.ref)), date: st?.date || new Date().toISOString(), pole_id: gv('st_pole'), prestataire: presta, contact: gv('st_contact'), objet, machine_id: gv('st_mach'), intervention_id: gv('st_int'), montant: parseInt(gv('st_montant')) || 0, date_debut_prevue: gv('st_deb'), date_fin_prevue: gv('st_fin'), bon_commande: gv('st_bc'), statut: st?.statut || 'Demandee' as any, observations: gv('st_obs') };
     Store.upsert('sous_traitances', obj); toast(isNew ? 'ST creee' : 'ST modifiee', 'success'); setView('list');
   };
   return (<>

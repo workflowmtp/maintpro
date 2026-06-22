@@ -130,7 +130,7 @@ export default function DAPage() {
     const desig = gv('da_desig'), type = gv('da_type'), urgence = gv('da_urgence'), justif = gv('da_justif');
     if (!desig || !type || !urgence || !justif) { toast('Champs requis', 'error'); return; }
     const obj: DemandeAchat = {
-      id: da?.id || Store.generateId('da'), ref: da?.ref || ('DA-' + new Date().getFullYear() + '-' + ('000' + (Store.getAll<DemandeAchat>('demandes_achat').length + 1)).slice(-3)),
+      id: da?.id || Store.generateId('da'), ref: da?.ref || Store.nextRef('DA', Store.getAll<DemandeAchat>('demandes_achat').map((x) => x.ref)),
       date: da?.date || new Date().toISOString(), pole_id: gv('da_pole'), type_achat: type, urgence, designation: desig,
       quantite: parseInt(gv('da_qty')) || 1, montant_estime: parseInt(gv('da_montant')) || 0,
       fournisseur_propose: gv('da_fourn'), date_souhaitee: gv('da_date_souh'), machine_id: gv('da_mach'),

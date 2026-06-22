@@ -128,7 +128,7 @@ export default function SignalementsPage() {
 
     const createInt = () => {
       const ints = Store.getAll<Intervention>('interventions');
-      const ref = 'INT-' + new Date().getFullYear() + '-' + ('000' + (ints.length + 1)).slice(-3);
+      const ref = Store.nextRef('INT', ints.map((i) => i.ref));
       const it: Intervention = { id: Store.generateId('int'), ref, date: new Date().toISOString(), machine_id: s.machine_id, pole_id: s.pole_id, atelier_id: s.atelier_id, technicien_principal_id: machine?.techniciens_affectes?.find((t) => t.role === 'Principal')?.technicien_id || machine?.techniciens_affectes?.[0]?.technicien_id || '', techniciens_participants: [], type: 'Curatif', statut: 'En cours', description: 'Issue du signalement ' + s.ref + ' : ' + s.dysfonctionnement, cause_id: null, pieces_utilisees: [], duree_minutes: 0, duree_diagnostic_min: 0, duree_intervention_min: 0, panne_repetitive: false, operateur_id: s.operateur_id, chef_validation_id: null, workflow: {}, signalement_id: s.id };
       Store.upsert('interventions', it); s.statut = 'Intervention creee'; s.intervention_id = it.id; Store.upsert('signalements', s);
       toast('Intervention ' + ref + ' creee', 'success'); refresh();
@@ -204,7 +204,7 @@ export default function SignalementsPage() {
     const machine = Store.findById<Machine>('machines', machineId);
     if (isNew) {
       const allS = Store.getAll<Signalement>('signalements');
-      Store.upsert('signalements', { id: Store.generateId('sig'), ref: 'SIG-' + new Date().getFullYear() + '-' + ('000' + (allS.length + 1)).slice(-3), date_signalement: new Date().toISOString(), operateur_id: opId, pole_id: machine?.pole_id || '', atelier_id: machine?.atelier_id || '', machine_id: machineId, dysfonctionnement: dysfonct, symptome: gv('sf_symptome'), machine_arretee: arret as any, urgence_percue: urgence as any, statut: 'Nouveau', intervention_id: null, qualification: null } as Signalement);
+      Store.upsert('signalements', { id: Store.generateId('sig'), ref: Store.nextRef('SIG', allS.map((x) => x.ref)), date_signalement: new Date().toISOString(), operateur_id: opId, pole_id: machine?.pole_id || '', atelier_id: machine?.atelier_id || '', machine_id: machineId, dysfonctionnement: dysfonct, symptome: gv('sf_symptome'), machine_arretee: arret as any, urgence_percue: urgence as any, statut: 'Nouveau', intervention_id: null, qualification: null } as Signalement);
       toast('Signalement envoye', 'success');
     } else {
       Store.upsert('signalements', { ...s, operateur_id: opId, pole_id: machine?.pole_id || s?.pole_id || '', atelier_id: machine?.atelier_id || s?.atelier_id || '', machine_id: machineId, dysfonctionnement: dysfonct, symptome: gv('sf_symptome'), machine_arretee: arret as any, urgence_percue: urgence as any } as Signalement);

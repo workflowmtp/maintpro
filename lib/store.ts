@@ -140,6 +140,22 @@ export function generateId(prefix: string = 'id'): string {
   return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 }
 
+// Generate the next reference like "SIG-2026-001" based on the highest
+// existing number for the current year, avoiding collisions caused by
+// deletions or numbering gaps (count-based numbering is NOT collision-safe).
+export function nextRef(prefix: string, existingRefs: string[]): string {
+  const year = new Date().getFullYear();
+  const base = prefix + '-' + year + '-';
+  let max = 0;
+  for (const ref of existingRefs) {
+    if (ref && ref.startsWith(base)) {
+      const n = parseInt(ref.slice(base.length), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  }
+  return base + ('000' + (max + 1)).slice(-3);
+}
+
 export function clearAll(): void {
   // Clear DB cache
   Object.keys(_cache).forEach((k) => delete _cache[k]);
@@ -163,6 +179,7 @@ const Store = {
   upsert,
   deleteById,
   generateId,
+  nextRef,
   clearAll,
   _setCache,
   _setSingle,

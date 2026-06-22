@@ -271,7 +271,7 @@ export default function InterventionsPage() {
     if (!type || !date || !machId || !techId || !desc) { toast('Champs obligatoires *', 'error'); return; }
     const machine = Store.findById<Machine>('machines', machId);
     const intervention: Intervention = {
-      id: it?.id || Store.generateId('int'), ref: it?.ref || ('INT-' + new Date().getFullYear() + '-' + ('000' + (Store.getAll<Intervention>('interventions').length + 1)).slice(-3)),
+      id: it?.id || Store.generateId('int'), ref: it?.ref || Store.nextRef('INT', Store.getAll<Intervention>('interventions').map((x) => x.ref)),
       date: new Date(date).toISOString(), machine_id: machId, pole_id: machine?.pole_id || '', atelier_id: machine?.atelier_id || '',
       technicien_principal_id: techId, techniciens_participants: it?.techniciens_participants || [], type: type as any, statut: (gv('frm_statut') || it?.statut || 'Brouillon') as any,
       description: desc, cause_id: gv('frm_cause') || null, pieces_utilisees: it?.pieces_utilisees || [],
