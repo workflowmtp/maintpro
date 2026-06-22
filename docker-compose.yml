@@ -13,7 +13,7 @@ services:
       POSTGRES_PASSWORD: Admin@1234
       POSTGRES_DB: postgres
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     ports:
       - "5432:5432"
 
