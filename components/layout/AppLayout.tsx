@@ -33,7 +33,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const publicPages = ['/login', '/register'];
+  const publicPages = ['/login', '/register', '/reset-password'];
 
   useEffect(() => {
     if (!isAuthenticated && !publicPages.includes(pathname)) {
