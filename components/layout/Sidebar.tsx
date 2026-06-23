@@ -108,8 +108,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </div>
 
       <div className="sidebar-footer">
-        <div className="sidebar-user-avatar">{initials}</div>
-        <div className="sidebar-user-info">
+        <div className="sidebar-user-avatar" onClick={() => handleNav('/profil')} style={{ cursor: 'pointer' }}>{initials}</div>
+        <div className="sidebar-user-info" onClick={() => handleNav('/profil')} style={{ cursor: 'pointer' }}>
           <div className="sidebar-user-name">{user.nom}</div>
           <div className="sidebar-user-role">{roleName}</div>
         </div>
