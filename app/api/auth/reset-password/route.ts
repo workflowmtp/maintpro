@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { verifyToken } from '@/app/api/admin/reset-password/route';
+import { verifyResetToken } from '@/lib/reset-token';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Le mot de passe doit faire au moins 6 caracteres' }, { status: 400 });
     }
 
-    const payload = verifyToken(token);
+    const payload = verifyResetToken(token);
     if (!payload) {
       return NextResponse.json({ error: 'Lien invalide ou expire' }, { status: 403 });
     }
