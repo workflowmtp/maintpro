@@ -89,6 +89,24 @@ export default function ParametragePage() {
       toast(editId ? 'Modifie' : 'Cree', 'success'); setShowModal(false); setEditId(null); refresh();
     };
     const del = (id: string) => { Store.deleteById('users', id); toast('Supprime', 'success'); refresh(); };
+    const resetPassword = async (u: User) => {
+      if (!confirm(`Reinitialiser le mot de passe de ${u.nom} ?\nLe nouveau mot de passe sera : admin1234`)) return;
+      try {
+        const res = await fetch('/api/admin/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: u.id }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          toast(`Mot de passe de ${u.nom} reinitialise`, 'success');
+        } else {
+          toast(data.error || 'Erreur', 'error');
+        }
+      } catch {
+        toast('Erreur reseau', 'error');
+      }
+    };
 
     return (<>
       <TabBar tab={tab} setTab={setTab} />
@@ -98,7 +116,7 @@ export default function ParametragePage() {
           <tr key={u.id}><td><div className="param-user-card" style={{ padding: 0, border: 'none' }}><div className="param-user-avatar">{u.nom.split(' ').map((w) => w[0]).join('').substring(0, 2)}</div><div className="param-user-info"><div className="param-user-name">{u.nom}</div></div></div></td>
           <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{u.email}</td><td style={{ fontFamily: 'var(--font-mono)' }}>{u.login}</td><td><span className="badge badge-blue">{getRoleName(u.role)}</span></td><td>{u.pole_id ? getPoleName(u.pole_id) : 'Tous'}</td>
           <td>{u.actif ? <span className="badge badge-green">Oui</span> : <span className="badge badge-red">Non</span>}</td>
-          <td><div style={{ display: 'flex', gap: 4 }}>{hasPermission('users_manage') && <><button className="btn-icon" onClick={() => { setEditId(u.id); setShowModal(true); }}>✏</button><button className="btn-icon" onClick={() => del(u.id)}>🗑</button></>}</div></td></tr>
+          <td><div style={{ display: 'flex', gap: 4 }}>{hasPermission('users_manage') && <><button className="btn-icon" title="Modifier" onClick={() => { setEditId(u.id); setShowModal(true); }}>✏</button><button className="btn-icon" title="Reinitialiser MDP" onClick={() => resetPassword(u)}>🔑</button><button className="btn-icon" title="Supprimer" onClick={() => del(u.id)}>🗑</button></>}</div></td></tr>
         ))}
       </tbody></table></div>
       {showModal && (() => {
