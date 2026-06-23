@@ -40,6 +40,7 @@ export default function ParametragePage() {
   const [rolePerms, setRolePerms] = useState<Record<string, string[]>>({});
   const [dirtyPerms, setDirtyPerms] = useState(false);
   const [importStatus, setImportStatus] = useState('');
+  const [resetLink, setResetLink] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const refresh = () => setTick((t) => t + 1);
   const gv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
@@ -90,7 +91,6 @@ export default function ParametragePage() {
     };
     const del = (id: string) => { Store.deleteById('users', id); toast('Supprime', 'success'); refresh(); };
     const resetPassword = async (u: User) => {
-      if (!confirm(`Reinitialiser le mot de passe de ${u.nom} ?\nLe nouveau mot de passe sera : admin1234`)) return;
       try {
         const res = await fetch('/api/admin/reset-password', {
           method: 'POST',
@@ -98,8 +98,10 @@ export default function ParametragePage() {
           body: JSON.stringify({ userId: u.id }),
         });
         const data = await res.json();
-        if (data.success) {
-          toast(`Mot de passe de ${u.nom} reinitialise`, 'success');
+        if (data.success && data.link) {
+          await navigator.clipboard.writeText(data.link);
+          setResetLink(data.link);
+          toast(`Lien de reinitialisation copie pour ${u.nom}`, 'success');
         } else {
           toast(data.error || 'Erreur', 'error');
         }
@@ -119,6 +121,13 @@ export default function ParametragePage() {
           <td><div style={{ display: 'flex', gap: 4 }}>{hasPermission('users_manage') && <><button className="btn-icon" title="Modifier" onClick={() => { setEditId(u.id); setShowModal(true); }}>✏</button><button className="btn-icon" title="Reinitialiser MDP" onClick={() => resetPassword(u)}>🔑</button><button className="btn-icon" title="Supprimer" onClick={() => del(u.id)}>🗑</button></>}</div></td></tr>
         ))}
       </tbody></table></div>
+      {resetLink && (
+        <div className="int-detail-card" style={{ marginTop: 16 }}>
+          <div className="int-detail-card-title">Lien de reinitialisation copie</div>
+          <div style={{ fontSize: '0.8rem', wordBreak: 'break-all', color: 'var(--color-muted)' }}>{resetLink}</div>
+          <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--color-success)' }}>Envoyez ce lien a l'utilisateur. Il expire dans 24h.</div>
+        </div>
+      )}
       {showModal && (() => {
         const u = editId ? Store.findById<User>('users', editId) : null;
         return <Modal isOpen={true} title={u ? 'Modifier ' + u.nom : 'Nouvel utilisateur'} onClose={() => { setShowModal(false); setEditId(null); }} onConfirm={saveUser}>
